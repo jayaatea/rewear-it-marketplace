@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# Welcome
 
 ## Project info
 
@@ -8,9 +8,9 @@
 
 There are several ways of editing your application.
 
-**Use Lovable**
+**PBL Project**
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/942ba627-1ddb-4289-8e92-4d2266d908c9) and start prompting.
+Simply visit the [PBL project](https://lovable.dev/projects/942ba627-1ddb-4289-8e92-4d2266d908c9) and start prompting.
 
 Changes made via Lovable will be committed automatically to this repo.
 
