@@ -151,7 +151,7 @@ const Dashboard = () => {
       <header className="border-b py-4">
         <div className="container px-4">
           <div className="flex items-center justify-between">
-            <RewearLogo size="sm" />
+            <RewearLogo size="sm" showImage={true} />
             
             <nav className="hidden md:flex items-center space-x-8">
               <button 

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -24,6 +23,11 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Header with Logo */}
+      <header className="absolute top-0 left-0 p-4 z-20">
+        <RewearLogo size="md" />
+      </header>
+      
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center bg-gradient-to-b from-rewear-mint/30 to-white">
         <div className="absolute inset-0 overflow-hidden">

@@ -17,6 +17,10 @@ const NotFound = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-rewear-gray/30">
+      <div className="absolute top-0 left-0 p-4">
+        <RewearLogo size="sm" />
+      </div>
+      
       <div className="text-center max-w-md px-4">
         <RewearLogo size="md" className="mb-6" />
         
