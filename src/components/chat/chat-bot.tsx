@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageCircle, X } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: number;
@@ -22,6 +23,21 @@ const ChatBot: React.FC = () => {
       timestamp: new Date()
     }
   ]);
+  const { toast } = useToast();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom of messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleOpenChat = () => {
+    setIsOpen(true);
+    toast({
+      title: "Chat opened",
+      description: "You can now chat with the owner",
+    });
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +51,7 @@ const ChatBot: React.FC = () => {
       timestamp: new Date()
     };
     
-    setMessages([...messages, newUserMessage]);
+    setMessages(prev => [...prev, newUserMessage]);
     setMessage('');
     
     // Simulate owner response after a delay
@@ -63,7 +79,7 @@ const ChatBot: React.FC = () => {
     <>
       {/* Chat bubble button */}
       <Button
-        onClick={() => setIsOpen(true)}
+        onClick={handleOpenChat}
         className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-primary z-50 flex items-center justify-center p-0"
         aria-label="Chat with owner"
       >
@@ -81,7 +97,12 @@ const ChatBot: React.FC = () => {
               </div>
               <span>Mira (Owner)</span>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="text-white hover:bg-primary-foreground/20">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setIsOpen(false)} 
+              className="text-white hover:bg-primary-foreground/20"
+            >
               <X size={18} />
             </Button>
           </div>
@@ -109,6 +130,7 @@ const ChatBot: React.FC = () => {
                 </div>
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Message input */}

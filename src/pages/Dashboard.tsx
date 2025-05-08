@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -11,6 +10,7 @@ import RewearLogo from '@/components/rewear-logo';
 import { AnimatedContainer } from '@/components/animated-container';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, ShoppingCart, User, Home, Tag, Camera, Heart, MessageSquare } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 // Mock product data
 const mockProducts = [
@@ -18,8 +18,8 @@ const mockProducts = [
     id: 1,
     title: 'Floral Summer Dress',
     image: 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
-    price: 15,
-    deposit: 50,
+    price: 1125, // ₹1,125
+    deposit: 3750, // ₹3,750
     size: 'M',
     condition: 'Like New',
     age: '1 year'
@@ -28,8 +28,8 @@ const mockProducts = [
     id: 2,
     title: 'Blue Denim Jacket',
     image: 'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8ZGVuaW0lMjBqYWNrZXR8ZW58MHx8MHx8fDA%3D',
-    price: 12,
-    deposit: 40,
+    price: 900, // ₹900
+    deposit: 3000, // ₹3,000
     size: 'L',
     condition: 'Good',
     age: '2 years'
@@ -38,8 +38,8 @@ const mockProducts = [
     id: 3,
     title: 'Men\'s Formal Suit',
     image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8c3VpdHxlbnwwfHwwfHx8MA%3D%3D',
-    price: 25,
-    deposit: 100,
+    price: 1875, // ₹1,875
+    deposit: 7500, // ₹7,500
     size: 'M',
     condition: 'Excellent',
     age: '6 months'
@@ -48,8 +48,8 @@ const mockProducts = [
     id: 4,
     title: 'Casual White T-Shirt',
     image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8d2hpdGUlMjB0c2hpcnR8ZW58MHx8MHx8fDA%3D',
-    price: 8,
-    deposit: 20,
+    price: 600, // ₹600
+    deposit: 1500, // ₹1,500
     size: 'S',
     condition: 'Good',
     age: '1 year'
@@ -58,8 +58,8 @@ const mockProducts = [
     id: 5,
     title: 'Party Sequin Dress',
     image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c2VxdWluJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
-    price: 20,
-    deposit: 60,
+    price: 1500, // ₹1,500
+    deposit: 4500, // ₹4,500
     size: 'S',
     condition: 'Like New',
     age: '3 months'
@@ -68,8 +68,8 @@ const mockProducts = [
     id: 6,
     title: 'Winter Knit Sweater',
     image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8a25pdHRlZCUyMHN3ZWF0ZXJ8ZW58MHx8MHx8fDA%3D',
-    price: 14,
-    deposit: 35,
+    price: 1050, // ₹1,050
+    deposit: 2625, // ₹2,625
     size: 'L',
     condition: 'Good',
     age: '2 years'
@@ -79,8 +79,9 @@ const mockProducts = [
 // Dashboard component
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('browse');
-  const [priceRange, setPriceRange] = useState([0, 50]);
+  const [priceRange, setPriceRange] = useState([0, 3750]); // Price range in INR
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -93,8 +94,18 @@ const Dashboard = () => {
     age: ''
   });
   
+  // Cart state
+  const [cartItems, setCartItems] = useState<number[]>([]);
+  
+  // Favorites state
+  const [favorites, setFavorites] = useState<number[]>([]);
+  
   // Handler for logging out
   const handleLogout = () => {
+    toast({
+      title: "Logged out",
+      description: "You have been logged out successfully",
+    });
     navigate('/');
   };
   
@@ -142,7 +153,73 @@ const Dashboard = () => {
     setSelectedImage(null);
     
     // Show success feedback
-    alert("Your item has been listed successfully!");
+    toast({
+      title: "Item Listed Successfully",
+      description: "Your item has been listed for rent",
+    });
+  };
+  
+  // Handler for adding to cart
+  const handleAddToCart = (productId: number) => {
+    setCartItems(prev => {
+      // Check if item is already in cart
+      if (prev.includes(productId)) {
+        toast({
+          title: "Already in cart",
+          description: "This item is already in your cart",
+        });
+        return prev;
+      } else {
+        toast({
+          title: "Added to cart",
+          description: "Item has been added to your cart",
+        });
+        return [...prev, productId];
+      }
+    });
+  };
+  
+  // Handler for toggling favorites
+  const handleToggleFavorite = (productId: number) => {
+    setFavorites(prev => {
+      if (prev.includes(productId)) {
+        toast({
+          title: "Removed from favorites",
+          description: "Item has been removed from your favorites",
+        });
+        return prev.filter(id => id !== productId);
+      } else {
+        toast({
+          title: "Added to favorites",
+          description: "Item has been added to your favorites",
+        });
+        return [...prev, productId];
+      }
+    });
+  };
+  
+  // Handler for opening messages
+  const handleOpenMessages = () => {
+    toast({
+      title: "Messages",
+      description: "Opening your messages",
+    });
+  };
+  
+  // Handler for opening cart
+  const handleOpenCart = () => {
+    toast({
+      title: "Shopping Cart",
+      description: `You have ${cartItems.length} items in your cart`,
+    });
+  };
+
+  // Handler for opening account
+  const handleOpenAccount = () => {
+    toast({
+      title: "Account",
+      description: "Opening your account settings",
+    });
   };
   
   return (
@@ -169,18 +246,38 @@ const Dashboard = () => {
             </nav>
             
             <div className="flex items-center space-x-4">
-              <button className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary">
+              <button 
+                className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary"
+                onClick={handleToggleFavorite}
+              >
                 <Heart size={20} />
+                {favorites.length > 0 && (
+                  <span className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
+                    {favorites.length}
+                  </span>
+                )}
               </button>
-              <button className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary">
+              <button 
+                className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary"
+                onClick={handleOpenMessages}
+              >
                 <MessageSquare size={20} />
               </button>
-              <button className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary">
+              <button 
+                className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
+                onClick={handleOpenCart}
+              >
                 <ShoppingCart size={20} />
+                {cartItems.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                    {cartItems.length}
+                  </span>
+                )}
               </button>
               <button 
                 className="w-10 h-10 rounded-full bg-rewear-gray flex items-center justify-center text-muted-foreground hover:text-primary"
-                onClick={handleLogout}
+                onClick={handleOpenAccount}
+                title="My Account"
               >
                 <User size={20} />
               </button>
@@ -285,13 +382,13 @@ const Dashboard = () => {
                         <div className="flex justify-between mb-2">
                           <Label>Price Range (per day)</Label>
                           <span className="text-sm text-muted-foreground">
-                            ${priceRange[0]} - ${priceRange[1]}
+                            ₹{priceRange[0]} - ₹{priceRange[1]}
                           </span>
                         </div>
                         <Slider
-                          defaultValue={[0, 50]}
-                          max={100}
-                          step={1}
+                          defaultValue={[0, 3750]}
+                          max={7500}
+                          step={75}
                           onValueChange={(value) => setPriceRange(value)}
                         />
                       </div>
@@ -305,7 +402,7 @@ const Dashboard = () => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">All Locations</SelectItem>
-                            <SelectItem value="nearby">Within 5 miles</SelectItem>
+                            <SelectItem value="nearby">Within 5 km</SelectItem>
                             <SelectItem value="city">Within city</SelectItem>
                             <SelectItem value="state">Within state</SelectItem>
                             <SelectItem value="country">Within country</SelectItem>
@@ -348,23 +445,40 @@ const Dashboard = () => {
                               alt={product.title}
                               className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
                             />
-                            <button className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 flex items-center justify-center hover:bg-white">
-                              <Heart size={16} className="text-muted-foreground hover:text-red-500" />
+                            <button 
+                              className={`absolute top-3 right-3 w-8 h-8 rounded-full 
+                                ${favorites.includes(product.id) ? 'bg-red-50' : 'bg-white/80'} 
+                                flex items-center justify-center hover:bg-white`}
+                              onClick={() => handleToggleFavorite(product.id)}
+                            >
+                              <Heart 
+                                size={16} 
+                                className={favorites.includes(product.id) ? 'text-red-500 fill-red-500' : 'text-muted-foreground'}
+                              />
                             </button>
                           </div>
                           <CardContent className="p-4">
                             <h3 className="font-medium text-lg mb-1 line-clamp-1">{product.title}</h3>
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <span className="text-primary font-semibold">${product.price}/day</span>
-                                <span className="text-xs text-muted-foreground">Deposit: ${product.deposit}</span>
+                                <span className="text-primary font-semibold">₹{product.price}/day</span>
+                                <span className="text-xs text-muted-foreground">Deposit: ₹{product.deposit}</span>
                               </div>
                               <span className="text-xs px-2 py-1 bg-rewear-gray rounded-full">{product.size}</span>
                             </div>
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
                               <span>{product.condition}</span>
                               <span>Age: {product.age}</span>
                             </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="w-full"
+                              onClick={() => handleAddToCart(product.id)}
+                              disabled={cartItems.includes(product.id)}
+                            >
+                              {cartItems.includes(product.id) ? 'Added to Cart' : 'Add to Cart'}
+                            </Button>
                           </CardContent>
                         </Card>
                       ))}
@@ -543,7 +657,7 @@ const Dashboard = () => {
                         <div className="space-y-2">
                           <Label htmlFor="rentalPrice">Rental Price (per day)</Label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2">$</span>
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2">₹</span>
                             <Input 
                               id="rentalPrice" 
                               name="rentalPrice"
@@ -560,7 +674,7 @@ const Dashboard = () => {
                         <div className="space-y-2">
                           <Label htmlFor="deposit">Security Deposit</Label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2">$</span>
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2">₹</span>
                             <Input 
                               id="deposit" 
                               name="deposit"

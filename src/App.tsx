@@ -8,6 +8,7 @@ import HomePage from "./pages/HomePage";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import ChatBot from "./components/chat/chat-bot";
+import LiveBackground from "./components/live-background";
 
 const queryClient = new QueryClient();
 
@@ -16,6 +17,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <LiveBackground />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
