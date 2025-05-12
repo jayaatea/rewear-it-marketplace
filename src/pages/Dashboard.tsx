@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -11,70 +12,10 @@ import { AnimatedContainer } from '@/components/animated-container';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, ShoppingCart, User, Home, Tag, Camera, Heart, MessageSquare } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-
-// Mock product data
-const mockProducts = [
-  {
-    id: 1,
-    title: 'Floral Summer Dress',
-    image: 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
-    price: 1125, // ₹1,125
-    deposit: 3750, // ₹3,750
-    size: 'M',
-    condition: 'Like New',
-    age: '1 year'
-  },
-  {
-    id: 2,
-    title: 'Blue Denim Jacket',
-    image: 'https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8ZGVuaW0lMjBqYWNrZXR8ZW58MHx8MHx8fDA%3D',
-    price: 900, // ₹900
-    deposit: 3000, // ₹3,000
-    size: 'L',
-    condition: 'Good',
-    age: '2 years'
-  },
-  {
-    id: 3,
-    title: 'Men\'s Formal Suit',
-    image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8c3VpdHxlbnwwfHwwfHx8MA%3D%3D',
-    price: 1875, // ₹1,875
-    deposit: 7500, // ₹7,500
-    size: 'M',
-    condition: 'Excellent',
-    age: '6 months'
-  },
-  {
-    id: 4,
-    title: 'Casual White T-Shirt',
-    image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8d2hpdGUlMjB0c2hpcnR8ZW58MHx8MHx8fDA%3D',
-    price: 600, // ₹600
-    deposit: 1500, // ₹1,500
-    size: 'S',
-    condition: 'Good',
-    age: '1 year'
-  },
-  {
-    id: 5,
-    title: 'Party Sequin Dress',
-    image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c2VxdWluJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
-    price: 1500, // ₹1,500
-    deposit: 4500, // ₹4,500
-    size: 'S',
-    condition: 'Like New',
-    age: '3 months'
-  },
-  {
-    id: 6,
-    title: 'Winter Knit Sweater',
-    image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8a25pdHRlZCUyMHN3ZWF0ZXJ8ZW58MHx8MHx8fDA%3D',
-    price: 1050, // ₹1,050
-    deposit: 2625, // ₹2,625
-    size: 'L',
-    condition: 'Good',
-    age: '2 years'
-  }
-];
+import { mockProducts, getNewProductId } from '@/data/products';
+import CartPage from '@/components/cart/cart-page';
+import FavoritesPage from '@/components/favorites/favorites-page';
+import ProfilePage from '@/components/profile/profile-page';
 
 // Dashboard component
 const Dashboard = () => {
@@ -96,9 +37,20 @@ const Dashboard = () => {
   
   // Cart state
   const [cartItems, setCartItems] = useState<number[]>([]);
+  const [showCart, setShowCart] = useState(false);
   
   // Favorites state
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+  
+  // Profile state
+  const [showProfile, setShowProfile] = useState(false);
+  
+  // Listed items state (items that the user has listed for rent)
+  const [listedItems, setListedItems] = useState<number[]>([]);
+  
+  // Product list state (including user's listed items)
+  const [allProducts, setAllProducts] = useState([...mockProducts]);
   
   // Handler for logging out
   const handleLogout = () => {
@@ -139,6 +91,26 @@ const Dashboard = () => {
     console.log("Form data submitted:", formData);
     console.log("Image data:", selectedImage);
     
+    const newProductId = getNewProductId();
+    
+    // Create a new product from the form data
+    const newProduct = {
+      id: newProductId,
+      title: formData.title,
+      image: selectedImage || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
+      price: parseInt(formData.rentalPrice) || 0,
+      deposit: parseInt(formData.deposit) || 0,
+      size: formData.size.toUpperCase(),
+      condition: formData.condition,
+      age: formData.age
+    };
+    
+    // Add the new product to the list
+    setAllProducts(prev => [...prev, newProduct]);
+    
+    // Add the new product to the listed items
+    setListedItems(prev => [...prev, newProductId]);
+    
     // Reset form
     setFormData({
       title: '',
@@ -157,6 +129,9 @@ const Dashboard = () => {
       title: "Item Listed Successfully",
       description: "Your item has been listed for rent",
     });
+    
+    // Switch to browse tab to see the new item
+    setActiveTab('browse');
   };
   
   // Handler for adding to cart
@@ -179,6 +154,15 @@ const Dashboard = () => {
     });
   };
   
+  // Handler for removing from cart
+  const handleRemoveFromCart = (productId: number) => {
+    setCartItems(prev => prev.filter(id => id !== productId));
+    toast({
+      title: "Removed from cart",
+      description: "Item has been removed from your cart",
+    });
+  };
+  
   // Handler for toggling favorites
   const handleToggleFavorite = (productId: number) => {
     setFavorites(prev => {
@@ -198,28 +182,30 @@ const Dashboard = () => {
     });
   };
   
-  // Handler for opening messages
-  const handleOpenMessages = () => {
+  // Handler for opening messages with specific owner
+  const handleMessageOwner = (productId: number) => {
+    // Find the product
+    const product = allProducts.find(p => p.id === productId);
     toast({
-      title: "Messages",
-      description: "Opening your messages",
+      title: "Message Owner",
+      description: `Opening chat with the owner of ${product?.title}`,
     });
+    // Here we would normally open the chat with the owner
   };
   
   // Handler for opening cart
   const handleOpenCart = () => {
-    toast({
-      title: "Shopping Cart",
-      description: `You have ${cartItems.length} items in your cart`,
-    });
+    setShowCart(true);
+  };
+  
+  // Handler for opening favorites
+  const handleOpenFavorites = () => {
+    setShowFavorites(true);
   };
 
   // Handler for opening account
   const handleOpenAccount = () => {
-    toast({
-      title: "Account",
-      description: "Opening your account settings",
-    });
+    setShowProfile(true);
   };
   
   return (
@@ -247,25 +233,28 @@ const Dashboard = () => {
             
             <div className="flex items-center space-x-4">
               <button 
-                className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary"
-                onClick={handleToggleFavorite}
+                className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
+                onClick={handleOpenFavorites}
+                aria-label="Favorites"
               >
                 <Heart size={20} />
                 {favorites.length > 0 && (
-                  <span className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
                     {favorites.length}
                   </span>
                 )}
               </button>
               <button 
                 className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary"
-                onClick={handleOpenMessages}
+                onClick={handleMessageOwner}
+                aria-label="Messages"
               >
                 <MessageSquare size={20} />
               </button>
               <button 
                 className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
                 onClick={handleOpenCart}
+                aria-label="Cart"
               >
                 <ShoppingCart size={20} />
                 {cartItems.length > 0 && (
@@ -278,6 +267,7 @@ const Dashboard = () => {
                 className="w-10 h-10 rounded-full bg-rewear-gray flex items-center justify-center text-muted-foreground hover:text-primary"
                 onClick={handleOpenAccount}
                 title="My Account"
+                aria-label="Profile"
               >
                 <User size={20} />
               </button>
@@ -437,7 +427,7 @@ const Dashboard = () => {
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                      {mockProducts.map((product) => (
+                      {allProducts.map((product) => (
                         <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
                           <div className="aspect-square relative overflow-hidden bg-gray-100">
                             <img
@@ -470,15 +460,25 @@ const Dashboard = () => {
                               <span>{product.condition}</span>
                               <span>Age: {product.age}</span>
                             </div>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="w-full"
-                              onClick={() => handleAddToCart(product.id)}
-                              disabled={cartItems.includes(product.id)}
-                            >
-                              {cartItems.includes(product.id) ? 'Added to Cart' : 'Add to Cart'}
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-full"
+                                onClick={() => handleAddToCart(product.id)}
+                                disabled={cartItems.includes(product.id)}
+                              >
+                                {cartItems.includes(product.id) ? 'Added to Cart' : 'Add to Cart'}
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="flex-shrink-0"
+                                onClick={() => handleMessageOwner(product.id)}
+                              >
+                                <MessageSquare size={16} />
+                              </Button>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -698,6 +698,36 @@ const Dashboard = () => {
           </Tabs>
         </div>
       </main>
+
+      {/* Cart Modal */}
+      {showCart && (
+        <CartPage 
+          cartItems={cartItems} 
+          onClose={() => setShowCart(false)} 
+          onRemoveFromCart={handleRemoveFromCart}
+          onMessageOwner={handleMessageOwner}
+        />
+      )}
+
+      {/* Favorites Modal */}
+      {showFavorites && (
+        <FavoritesPage 
+          favorites={favorites} 
+          onClose={() => setShowFavorites(false)} 
+          onRemoveFromFavorites={handleToggleFavorite}
+          onAddToCart={handleAddToCart}
+        />
+      )}
+
+      {/* Profile Modal */}
+      {showProfile && (
+        <ProfilePage 
+          onClose={() => setShowProfile(false)} 
+          onLogout={handleLogout}
+          cartItems={cartItems}
+          listedItems={listedItems}
+        />
+      )}
     </div>
   );
 };

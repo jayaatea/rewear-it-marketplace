@@ -12,13 +12,23 @@ interface Message {
   timestamp: Date;
 }
 
-const ChatBot: React.FC = () => {
+interface ChatBotProps {
+  productId?: number;
+  productTitle?: string;
+  ownerName?: string;
+}
+
+const ChatBot: React.FC<ChatBotProps> = ({ 
+  productId, 
+  productTitle = "this beautiful dress", 
+  ownerName = "Mira" 
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      text: "Hello! I'm Mira, the owner of this beautiful dress. How can I help you?",
+      text: `Hello! I'm ${ownerName}, the owner of ${productTitle}. How can I help you?`,
       sender: 'owner',
       timestamp: new Date()
     }
@@ -31,11 +41,23 @@ const ChatBot: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Update initial message when product changes
+  useEffect(() => {
+    setMessages([
+      {
+        id: 1,
+        text: `Hello! I'm ${ownerName}, the owner of ${productTitle}. How can I help you?`,
+        sender: 'owner',
+        timestamp: new Date()
+      }
+    ]);
+  }, [productId, productTitle, ownerName]);
+
   const handleOpenChat = () => {
     setIsOpen(true);
     toast({
       title: "Chat opened",
-      description: "You can now chat with the owner",
+      description: `You can now chat with ${ownerName}`,
     });
   };
 
@@ -56,17 +78,39 @@ const ChatBot: React.FC = () => {
     
     // Simulate owner response after a delay
     setTimeout(() => {
-      const responses = [
-        "Yes, this dress is available for the weekend!",
-        "The fabric is soft cotton with a silk lining.",
-        "I can arrange delivery to your location for an additional ₹250.",
-        "The dress fits true to size. If you're usually a medium, this will fit perfectly.",
-        "I've had many people rent this with great feedback!"
-      ];
+      let ownerResponse = "";
+
+      // Check if message contains specific keywords and respond accordingly
+      const lowerMessage = message.toLowerCase();
+      if (lowerMessage.includes("price") || lowerMessage.includes("cost") || lowerMessage.includes("how much")) {
+        ownerResponse = `The rental price is listed on the product page. If you're interested, you can go ahead and add it to your cart!`;
+      } else if (lowerMessage.includes("available") || lowerMessage.includes("when") || lowerMessage.includes("dates")) {
+        ownerResponse = "Yes, this item is available for the weekend! When do you need it exactly?";
+      } else if (lowerMessage.includes("size") || lowerMessage.includes("fit")) {
+        ownerResponse = "It fits true to size. If you're usually a medium, this will fit perfectly.";
+      } else if (lowerMessage.includes("delivery") || lowerMessage.includes("shipping")) {
+        ownerResponse = "I can arrange delivery to your location for an additional ₹250.";
+      } else if (lowerMessage.includes("material") || lowerMessage.includes("fabric")) {
+        ownerResponse = "The fabric is soft cotton with a silk lining. It's really comfortable to wear!";
+      } else if (lowerMessage.includes("condition") || lowerMessage.includes("quality")) {
+        ownerResponse = "I've had this item for just a short time and it's in excellent condition, almost like new!";
+      } else if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
+        ownerResponse = `Hi there! Thanks for your interest in ${productTitle}. How can I help you today?`;
+      } else {
+        // Default responses if no keywords match
+        const responses = [
+          "Yes, this item is available for the weekend!",
+          "The fabric is soft cotton with a silk lining.",
+          "I can arrange delivery to your location for an additional ₹250.",
+          "The item fits true to size. If you're usually a medium, this will fit perfectly.",
+          "I've had many people rent this with great feedback!"
+        ];
+        ownerResponse = responses[Math.floor(Math.random() * responses.length)];
+      }
       
       const ownerMessage: Message = {
         id: messages.length + 2,
-        text: responses[Math.floor(Math.random() * responses.length)],
+        text: ownerResponse,
         sender: 'owner',
         timestamp: new Date()
       };
@@ -93,9 +137,9 @@ const ChatBot: React.FC = () => {
           <div className="bg-primary text-white p-3 rounded-t-lg flex justify-between items-center">
             <div className="flex items-center">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mr-2">
-                M
+                {ownerName.charAt(0)}
               </div>
-              <span>Mira (Owner)</span>
+              <span>{ownerName} (Owner)</span>
             </div>
             <Button 
               variant="ghost" 
