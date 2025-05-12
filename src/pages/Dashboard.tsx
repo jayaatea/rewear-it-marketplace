@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { mockProducts, getNewProductId } from '@/data/products';
 import CartPage from '@/components/cart/cart-page';
 import FavoritesPage from '@/components/favorites/favorites-page';
 import ProfilePage from '@/components/profile/profile-page';
+import { useAuth } from '@/hooks/use-auth';
 
 // Update the Dashboard component to include the onMessageOwner props
 interface DashboardProps {
@@ -39,30 +40,56 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     age: ''
   });
   
-  // Cart state
-  const [cartItems, setCartItems] = useState<number[]>([]);
+  // Get the authenticated user
+  const { user, loading: authLoading } = useAuth();
+  
+  // State for products and user actions
+  const [products, setProducts] = useState<any[]>([]);
+  const [cartItems, setCartItems] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [showCart, setShowCart] = useState(false);
-  
-  // Favorites state
-  const [favorites, setFavorites] = useState<number[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
-  
-  // Profile state
   const [showProfile, setShowProfile] = useState(false);
+  const [listedItems, setListedItems] = useState<string[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   
-  // Listed items state (items that the user has listed for rent)
-  const [listedItems, setListedItems] = useState<number[]>([]);
-  
-  // Product list state (including user's listed items)
-  const [allProducts, setAllProducts] = useState([...mockProducts]);
-  
-  // Messages state
-  const [messageHistory, setMessageHistory] = useState<{
-    [key: number]: { lastMessage: string; timestamp: Date }
-  }>({});
+  // Fetch products and user data
+  useEffect(() => {
+    const loadData = async () => {
+      if (authLoading) return;
+      
+      try {
+        // Fetch products
+        const productsData = await fetchProducts();
+        setProducts(productsData);
+        
+        // If user is logged in, fetch favorites and cart
+        if (user) {
+          const userFavorites = await getUserFavorites(user.id);
+          setFavorites(userFavorites);
+          
+          const userProducts = await fetchUserProducts(user.id);
+          setListedItems(userProducts.map(p => p.id));
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+        toast({
+          title: "Error loading data",
+          description: "There was a problem fetching your data",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    
+    loadData();
+  }, [user, authLoading, toast]);
   
   // Handler for logging out
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const { signOut } = useAuth();
+    await signOut();
     toast({
       title: "Logged out",
       description: "You have been logged out successfully",
@@ -94,107 +121,143 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   };
   
   // Handler for Rent Out form submission
-  const handleRentOutSubmit = (e: React.FormEvent) => {
+  const handleRentOutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // This would normally submit the data to a backend
-    console.log("Form data submitted:", formData);
-    console.log("Image data:", selectedImage);
     
-    const newProductId = getNewProductId();
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to list items for rent",
+        variant: "destructive"
+      });
+      return;
+    }
     
-    // Create a new product from the form data
-    const newProduct = {
-      id: newProductId,
-      title: formData.title,
-      image: selectedImage || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
-      price: parseInt(formData.rentalPrice) || 0,
-      deposit: parseInt(formData.deposit) || 0,
-      size: formData.size.toUpperCase(),
-      condition: formData.condition,
-      age: formData.age
-    };
-    
-    // Add the new product to the list
-    setAllProducts(prev => [...prev, newProduct]);
-    
-    // Add the new product to the listed items
-    setListedItems(prev => [...prev, newProductId]);
-    
-    // Reset form
-    setFormData({
-      title: '',
-      description: '',
-      category: '',
-      size: '',
-      condition: '',
-      rentalPrice: '',
-      deposit: '',
-      age: ''
-    });
-    setSelectedImage(null);
-    
-    // Show success feedback
-    toast({
-      title: "Item Listed Successfully",
-      description: "Your item has been listed for rent",
-    });
-    
-    // Switch to browse tab to see the new item
-    setActiveTab('browse');
+    try {
+      // Create new product
+      const newProduct = {
+        owner_id: user.id,
+        title: formData.title,
+        description: formData.description,
+        image_url: selectedImage || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
+        price: parseInt(formData.rentalPrice) || 0,
+        deposit: parseInt(formData.deposit) || 0,
+        size: formData.size.toUpperCase(),
+        condition: formData.condition,
+        age: formData.age
+      };
+      
+      const savedProduct = await createProduct(newProduct);
+      
+      // Update products list and reset form
+      setProducts(prev => [savedProduct, ...prev]);
+      setListedItems(prev => [...prev, savedProduct.id]);
+      
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        category: '',
+        size: '',
+        condition: '',
+        rentalPrice: '',
+        deposit: '',
+        age: ''
+      });
+      setSelectedImage(null);
+      
+      // Show success feedback
+      toast({
+        title: "Item Listed Successfully",
+        description: "Your item has been listed for rent",
+      });
+      
+      // Switch to browse tab to see the new item
+      setActiveTab('browse');
+    } catch (error) {
+      console.error('Error listing product:', error);
+      toast({
+        title: "Error",
+        description: "Failed to list your item. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Handler for adding to cart
-  const handleAddToCart = (productId: number) => {
-    setCartItems(prev => {
-      // Check if item is already in cart
-      if (prev.includes(productId)) {
-        toast({
-          title: "Already in cart",
-          description: "This item is already in your cart",
-        });
-        return prev;
-      } else {
-        toast({
-          title: "Added to cart",
-          description: "Item has been added to your cart",
-        });
-        return [...prev, productId];
-      }
-    });
+  const handleAddToCart = async (productId: string) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to add items to your cart",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      await addToCart(productId, user.id);
+      setCartItems(prev => [...prev, productId]);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+    }
   };
   
   // Handler for removing from cart
-  const handleRemoveFromCart = (productId: number) => {
-    setCartItems(prev => prev.filter(id => id !== productId));
-    toast({
-      title: "Removed from cart",
-      description: "Item has been removed from your cart",
-    });
+  const handleRemoveFromCart = async (productId: string) => {
+    if (!user) return;
+    
+    try {
+      await removeFromCart(productId, user.id);
+      setCartItems(prev => prev.filter(id => id !== productId));
+      
+      toast({
+        title: "Removed from cart",
+        description: "Item has been removed from your cart",
+      });
+    } catch (error) {
+      console.error('Error removing from cart:', error);
+    }
   };
   
   // Handler for toggling favorites
-  const handleToggleFavorite = (productId: number) => {
-    setFavorites(prev => {
-      if (prev.includes(productId)) {
+  const handleToggleFavorite = async (productId: string) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to save favorites",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      if (favorites.includes(productId)) {
+        await removeFromFavorites(productId, user.id);
+        setFavorites(prev => prev.filter(id => id !== productId));
+        
         toast({
           title: "Removed from favorites",
           description: "Item has been removed from your favorites",
         });
-        return prev.filter(id => id !== productId);
       } else {
+        await addToFavorites(productId, user.id);
+        setFavorites(prev => [...prev, productId]);
+        
         toast({
           title: "Added to favorites",
           description: "Item has been added to your favorites",
         });
-        return [...prev, productId];
       }
-    });
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
   };
   
   // Handler for opening messages with specific owner
-  const handleMessageOwner = (productId: number) => {
+  const handleMessageOwner = (productId: number, ownerId?: string) => {
     // Find the product
-    const product = allProducts.find(p => p.id === productId);
+    const product = products.find(p => p.id === productId);
     
     if (product) {
       // Call the parent component's onMessageOwner function
@@ -219,6 +282,30 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     }
   };
   
+  // Handler for proceeding to checkout
+  const handleProceedToCheckout = () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to checkout",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (cartItems.length === 0) {
+      toast({
+        title: "Empty Cart",
+        description: "Your cart is empty. Add items before checkout.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    navigate('/checkout');
+    setShowCart(false);
+  };
+  
   // Handler for opening cart
   const handleOpenCart = () => {
     setShowCart(true);
@@ -233,6 +320,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   const handleOpenAccount = () => {
     setShowProfile(true);
   };
+  
+  if (authLoading || loadingProducts) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -458,11 +556,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                      {allProducts.map((product) => (
+                      {products.map((product) => (
                         <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
                           <div className="aspect-square relative overflow-hidden bg-gray-100">
                             <img
-                              src={product.image}
+                              src={product.image_url}
                               alt={product.title}
                               className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
                             />
@@ -505,7 +603,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                                 variant="ghost" 
                                 size="sm"
                                 className="flex-shrink-0"
-                                onClick={() => handleMessageOwner(product.id)}
+                                onClick={() => handleMessageOwner(parseInt(product.id))}
                               >
                                 <MessageSquare size={16} />
                               </Button>
@@ -736,10 +834,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
           cartItems={cartItems} 
           onClose={() => setShowCart(false)} 
           onRemoveFromCart={handleRemoveFromCart}
+          onCheckout={handleProceedToCheckout}
           onMessageOwner={(productId) => {
-            const product = allProducts.find(p => p.id === productId);
+            const product = products.find(p => p.id === productId);
             if (product && onMessageOwner) {
-              onMessageOwner(productId, product.title, "Owner");
+              onMessageOwner(parseInt(productId), product.title, "Owner");
               setShowCart(false);
             }
           }}

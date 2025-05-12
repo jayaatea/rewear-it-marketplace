@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState } from "react";
 import HomePage from "./pages/HomePage";
 import Dashboard from "./pages/Dashboard";
+import Checkout from "./pages/Checkout";
 import NotFound from "./pages/NotFound";
 import ChatBot from "./components/chat/chat-bot";
 import LiveBackground from "./components/live-background";
@@ -38,6 +39,7 @@ const App = () => {
                   }}
                 />
               } />
+              <Route path="/checkout" element={<Checkout />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <ChatBot 
