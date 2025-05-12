@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageCircle, X } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { mockProducts } from '@/data/products';
 
 interface Message {
   id: number;
   text: string;
   sender: 'user' | 'owner';
   timestamp: Date;
+  productId?: number;
 }
 
 interface ChatBotProps {
@@ -25,39 +27,82 @@ const ChatBot: React.FC<ChatBotProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      text: `Hello! I'm ${ownerName}, the owner of ${productTitle}. How can I help you?`,
-      sender: 'owner',
-      timestamp: new Date()
-    }
-  ]);
+  const [allMessages, setAllMessages] = useState<Message[]>([]);
+  const [currentProductId, setCurrentProductId] = useState<number | undefined>(productId);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Initialize messages from "localStorage" on component mount
+  useEffect(() => {
+    const storedMessages = localStorage.getItem('chatMessages');
+    if (storedMessages) {
+      try {
+        const parsedMessages = JSON.parse(storedMessages);
+        // Convert string timestamps back to Date objects
+        const messagesWithDateObjects = parsedMessages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        setAllMessages(messagesWithDateObjects);
+      } catch (e) {
+        console.error("Error parsing stored messages:", e);
+      }
+    }
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('chatMessages', JSON.stringify(allMessages));
+  }, [allMessages]);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [allMessages, currentProductId]);
 
-  // Update initial message when product changes
-  useEffect(() => {
-    setMessages([
-      {
-        id: 1,
-        text: `Hello! I'm ${ownerName}, the owner of ${productTitle}. How can I help you?`,
-        sender: 'owner',
-        timestamp: new Date()
+  // Get messages for current product or general messages (productId = undefined)
+  const currentMessages = allMessages.filter(msg => 
+    (currentProductId && msg.productId === currentProductId) || 
+    (!currentProductId && !msg.productId)
+  );
+
+  const handleOpenChat = (productId?: number, productName?: string, owner?: string) => {
+    setCurrentProductId(productId);
+    
+    // If product details are provided, use them
+    if (productId && productName) {
+      // Find if we already have any messages for this product
+      const hasExistingMessages = allMessages.some(msg => msg.productId === productId);
+      
+      // If no existing messages, add a welcome message from the owner
+      if (!hasExistingMessages) {
+        const product = mockProducts.find(p => p.id === productId);
+        const newOwnerMessage: Message = {
+          id: allMessages.length + 1,
+          text: `Hello! I'm ${owner || 'the owner'} of ${productName}. How can I help you?`,
+          sender: 'owner',
+          timestamp: new Date(),
+          productId: productId
+        };
+        
+        setAllMessages(prev => [...prev, newOwnerMessage]);
       }
-    ]);
-  }, [productId, productTitle, ownerName]);
-
-  const handleOpenChat = () => {
+    } else if (!currentMessages.length) {
+      // For general chat, add a welcome message if no messages exist
+      const newOwnerMessage: Message = {
+        id: allMessages.length + 1,
+        text: `Hello! How can I help you today?`,
+        sender: 'owner',
+        timestamp: new Date(),
+      };
+      
+      setAllMessages(prev => [...prev, newOwnerMessage]);
+    }
+    
     setIsOpen(true);
     toast({
       title: "Chat opened",
-      description: `You can now chat with ${ownerName}`,
+      description: productId ? `You can now chat about ${productName || 'this product'}` : "General chat opened",
     });
   };
 
@@ -67,13 +112,14 @@ const ChatBot: React.FC<ChatBotProps> = ({
 
     // Add user message
     const newUserMessage: Message = {
-      id: messages.length + 1,
+      id: allMessages.length + 1,
       text: message,
       sender: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      productId: currentProductId
     };
     
-    setMessages(prev => [...prev, newUserMessage]);
+    setAllMessages(prev => [...prev, newUserMessage]);
     setMessage('');
     
     // Simulate owner response after a delay
@@ -95,7 +141,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
       } else if (lowerMessage.includes("condition") || lowerMessage.includes("quality")) {
         ownerResponse = "I've had this item for just a short time and it's in excellent condition, almost like new!";
       } else if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
-        ownerResponse = `Hi there! Thanks for your interest in ${productTitle}. How can I help you today?`;
+        ownerResponse = `Hi there! Thanks for your interest. How can I help you today?`;
       } else {
         // Default responses if no keywords match
         const responses = [
@@ -109,13 +155,14 @@ const ChatBot: React.FC<ChatBotProps> = ({
       }
       
       const ownerMessage: Message = {
-        id: messages.length + 2,
+        id: allMessages.length + 2,
         text: ownerResponse,
         sender: 'owner',
-        timestamp: new Date()
+        timestamp: new Date(),
+        productId: currentProductId
       };
       
-      setMessages(prev => [...prev, ownerMessage]);
+      setAllMessages(prev => [...prev, ownerMessage]);
     }, 1000);
   };
 
@@ -123,7 +170,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
     <>
       {/* Chat bubble button */}
       <Button
-        onClick={handleOpenChat}
+        onClick={() => handleOpenChat()}
         className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-primary z-50 flex items-center justify-center p-0"
         aria-label="Chat with owner"
       >
@@ -137,9 +184,9 @@ const ChatBot: React.FC<ChatBotProps> = ({
           <div className="bg-primary text-white p-3 rounded-t-lg flex justify-between items-center">
             <div className="flex items-center">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mr-2">
-                {ownerName.charAt(0)}
+                {currentProductId ? (ownerName || 'O').charAt(0) : 'R'}
               </div>
-              <span>{ownerName} (Owner)</span>
+              <span>{currentProductId ? `${ownerName || 'Owner'}` : 'ReWear Support'}</span>
             </div>
             <Button 
               variant="ghost" 
@@ -153,27 +200,33 @@ const ChatBot: React.FC<ChatBotProps> = ({
 
           {/* Messages area */}
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-[300px]">
-            {messages.map((msg) => (
-              <div 
-                key={msg.id} 
-                className={`max-w-[80%] ${msg.sender === 'owner' ? 'self-start' : 'self-end'}`}
-              >
+            {currentMessages.length > 0 ? (
+              currentMessages.map((msg) => (
                 <div 
-                  className={`p-3 rounded-lg ${
-                    msg.sender === 'owner' 
-                      ? 'bg-rewear-gray text-foreground' 
-                      : 'bg-primary text-primary-foreground'
-                  }`}
+                  key={msg.id} 
+                  className={`max-w-[80%] ${msg.sender === 'owner' ? 'self-start' : 'self-end'}`}
                 >
-                  {msg.text}
+                  <div 
+                    className={`p-3 rounded-lg ${
+                      msg.sender === 'owner' 
+                        ? 'bg-rewear-gray text-foreground' 
+                        : 'bg-primary text-primary-foreground'
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                  <div className={`text-xs text-muted-foreground mt-1 ${
+                    msg.sender === 'owner' ? 'text-left' : 'text-right'
+                  }`}>
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
                 </div>
-                <div className={`text-xs text-muted-foreground mt-1 ${
-                  msg.sender === 'owner' ? 'text-left' : 'text-right'
-                }`}>
-                  {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
+              ))
+            ) : (
+              <div className="text-center text-muted-foreground p-4">
+                No messages yet. Start a conversation!
               </div>
-            ))}
+            )}
             <div ref={messagesEndRef} />
           </div>
 

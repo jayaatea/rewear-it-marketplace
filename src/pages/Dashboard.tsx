@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -17,8 +16,13 @@ import CartPage from '@/components/cart/cart-page';
 import FavoritesPage from '@/components/favorites/favorites-page';
 import ProfilePage from '@/components/profile/profile-page';
 
+// Update the Dashboard component to include the onMessageOwner props
+interface DashboardProps {
+  onMessageOwner?: (productId: number, productTitle: string, ownerName: string) => void;
+}
+
 // Dashboard component
-const Dashboard = () => {
+const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('browse');
@@ -51,6 +55,11 @@ const Dashboard = () => {
   
   // Product list state (including user's listed items)
   const [allProducts, setAllProducts] = useState([...mockProducts]);
+  
+  // Messages state
+  const [messageHistory, setMessageHistory] = useState<{
+    [key: number]: { lastMessage: string; timestamp: Date }
+  }>({});
   
   // Handler for logging out
   const handleLogout = () => {
@@ -186,11 +195,28 @@ const Dashboard = () => {
   const handleMessageOwner = (productId: number) => {
     // Find the product
     const product = allProducts.find(p => p.id === productId);
-    toast({
-      title: "Message Owner",
-      description: `Opening chat with the owner of ${product?.title}`,
-    });
-    // Here we would normally open the chat with the owner
+    
+    if (product) {
+      // Call the parent component's onMessageOwner function
+      if (onMessageOwner) {
+        onMessageOwner(productId, product.title, "Owner");
+      }
+      
+      toast({
+        title: "Message Owner",
+        description: `Opening chat with the owner of ${product.title}`,
+      });
+    } else {
+      // Handle case where there's no specific product (general messages)
+      if (onMessageOwner) {
+        onMessageOwner(0, "", "ReWear Support");
+      }
+      
+      toast({
+        title: "Messages",
+        description: "Opening your message history",
+      });
+    }
   };
   
   // Handler for opening cart
@@ -245,11 +271,16 @@ const Dashboard = () => {
                 )}
               </button>
               <button 
-                className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary"
-                onClick={handleMessageOwner}
+                className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
+                onClick={() => handleMessageOwner(0)}
                 aria-label="Messages"
               >
                 <MessageSquare size={20} />
+                {Object.keys(messageHistory).length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                    {Object.keys(messageHistory).length}
+                  </span>
+                )}
               </button>
               <button 
                 className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
@@ -705,7 +736,13 @@ const Dashboard = () => {
           cartItems={cartItems} 
           onClose={() => setShowCart(false)} 
           onRemoveFromCart={handleRemoveFromCart}
-          onMessageOwner={handleMessageOwner}
+          onMessageOwner={(productId) => {
+            const product = allProducts.find(p => p.id === productId);
+            if (product && onMessageOwner) {
+              onMessageOwner(productId, product.title, "Owner");
+              setShowCart(false);
+            }
+          }}
         />
       )}
 

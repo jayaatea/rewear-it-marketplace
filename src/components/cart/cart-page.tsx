@@ -24,6 +24,11 @@ const CartPage: React.FC<CartPageProps> = ({ cartItems, onClose, onRemoveFromCar
       description: "Moving to payment process",
     });
   };
+  
+  const handleMessageOwner = (productId: number) => {
+    onMessageOwner(productId);
+    onClose(); // Close the cart modal
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -76,7 +81,7 @@ const CartPage: React.FC<CartPageProps> = ({ cartItems, onClose, onRemoveFromCar
                             variant="ghost" 
                             size="sm" 
                             className="text-xs flex items-center gap-1"
-                            onClick={() => onMessageOwner(product.id)}
+                            onClick={() => handleMessageOwner(product.id)}
                           >
                             <MessageSquare size={14} />
                             Message Owner
