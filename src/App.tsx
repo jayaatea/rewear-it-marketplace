@@ -7,48 +7,43 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState } from "react";
 import HomePage from "./pages/HomePage";
 import Dashboard from "./pages/Dashboard";
-import Checkout from "./pages/Checkout";
 import NotFound from "./pages/NotFound";
 import ChatBot from "./components/chat/chat-bot";
 import LiveBackground from "./components/live-background";
-import { AuthProvider } from "./hooks/use-auth";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [chatProductId, setChatProductId] = useState<string | undefined>(undefined);
+  const [chatProductId, setChatProductId] = useState<number | undefined>(undefined);
   const [chatProductTitle, setChatProductTitle] = useState<string | undefined>(undefined);
   const [chatOwnerName, setChatOwnerName] = useState<string | undefined>(undefined);
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <LiveBackground />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/dashboard" element={
-                <Dashboard 
-                  onMessageOwner={(productId, title, owner) => {
-                    setChatProductId(typeof productId === 'number' ? productId.toString() : productId);
-                    setChatProductTitle(title);
-                    setChatOwnerName(owner);
-                  }}
-                />
-              } />
-              <Route path="/checkout" element={<Checkout />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-            <ChatBot 
-              productId={chatProductId} 
-              productTitle={chatProductTitle} 
-              ownerName={chatOwnerName}
-            />
-          </BrowserRouter>
-        </AuthProvider>
+        <Toaster />
+        <Sonner />
+        <LiveBackground />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/dashboard" element={
+              <Dashboard 
+                onMessageOwner={(productId, title, owner) => {
+                  setChatProductId(productId);
+                  setChatProductTitle(title);
+                  setChatOwnerName(owner);
+                }}
+              />
+            } />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          <ChatBot 
+            productId={chatProductId} 
+            productTitle={chatProductTitle} 
+            ownerName={chatOwnerName}
+          />
+        </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
   );

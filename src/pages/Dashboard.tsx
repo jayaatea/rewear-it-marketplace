@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -9,29 +9,16 @@ import { Slider } from '@/components/ui/slider';
 import RewearLogo from '@/components/rewear-logo';
 import { AnimatedContainer } from '@/components/animated-container';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ShoppingCart, User, Home, Tag, Camera, Heart, MessageSquare, AlertCircle } from 'lucide-react';
+import { Search, Filter, ShoppingCart, User, Home, Tag, Camera, Heart, MessageSquare } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { mockProducts, getNewProductId } from '@/data/products';
 import CartPage from '@/components/cart/cart-page';
 import FavoritesPage from '@/components/favorites/favorites-page';
 import ProfilePage from '@/components/profile/profile-page';
-import { useAuth } from '@/hooks/use-auth';
-import { 
-  fetchProducts, 
-  fetchUserProducts, 
-  addToCart, 
-  removeFromCart, 
-  createProduct, 
-  addToFavorites, 
-  removeFromFavorites, 
-  getUserFavorites,
-  getUserCart,
-  Product
-} from '@/lib/product-service';
-import { supabase } from '@/lib/supabase';
 
 // Update the Dashboard component to include the onMessageOwner props
 interface DashboardProps {
-  onMessageOwner?: (productId: string | number, productTitle: string, ownerName: string) => void;
+  onMessageOwner?: (productId: number, productTitle: string, ownerName: string) => void;
 }
 
 // Dashboard component
@@ -39,7 +26,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('browse');
-  const [priceRange, setPriceRange] = useState<number[]>([0, 3750]); // Price range in INR
+  const [priceRange, setPriceRange] = useState([0, 3750]); // Price range in INR
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -52,72 +39,30 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     age: ''
   });
   
-  // Get the authenticated user
-  const { user, loading: authLoading } = useAuth();
-  
-  // State for products and user actions
-  const [products, setProducts] = useState<Product[]>([]);
-  const [cartItems, setCartItems] = useState<string[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
+  // Cart state
+  const [cartItems, setCartItems] = useState<number[]>([]);
   const [showCart, setShowCart] = useState(false);
-  const [showFavorites, setShowFavorites] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [listedItems, setListedItems] = useState<string[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [messageCount, setMessageCount] = useState(0);
   
-  // Fetch products and user data
-  useEffect(() => {
-    const loadData = async () => {
-      if (authLoading) return;
-      
-      try {
-        // Fetch products
-        const productsData = await fetchProducts();
-        setProducts(productsData);
-        
-        // If user is logged in, fetch favorites and cart
-        if (user) {
-          // Get favorites
-          const userFavorites = await getUserFavorites(user.id);
-          setFavorites(userFavorites);
-          
-          // Get user products
-          const userProducts = await fetchUserProducts(user.id);
-          setListedItems(userProducts.map(p => p.id));
-          
-          // Get cart items
-          const cartData = await getUserCart(user.id);
-          setCartItems(cartData.map(item => item.product_id));
-
-          // Get message count
-          const { data } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('receiver_id', user.id)
-            .eq('read', false);
-          
-          setMessageCount(data?.length || 0);
-        }
-      } catch (error) {
-        console.error('Error loading data:', error);
-        toast({
-          title: "Error loading data",
-          description: "There was a problem fetching your data",
-          variant: "destructive"
-        });
-      } finally {
-        setLoadingProducts(false);
-      }
-    };
-    
-    loadData();
-  }, [user, authLoading, toast]);
+  // Favorites state
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+  
+  // Profile state
+  const [showProfile, setShowProfile] = useState(false);
+  
+  // Listed items state (items that the user has listed for rent)
+  const [listedItems, setListedItems] = useState<number[]>([]);
+  
+  // Product list state (including user's listed items)
+  const [allProducts, setAllProducts] = useState([...mockProducts]);
+  
+  // Messages state
+  const [messageHistory, setMessageHistory] = useState<{
+    [key: number]: { lastMessage: string; timestamp: Date }
+  }>({});
   
   // Handler for logging out
-  const handleLogout = async () => {
-    const { signOut } = useAuth();
-    await signOut();
+  const handleLogout = () => {
     toast({
       title: "Logged out",
       description: "You have been logged out successfully",
@@ -149,157 +94,107 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   };
   
   // Handler for Rent Out form submission
-  const handleRentOutSubmit = async (e: React.FormEvent) => {
+  const handleRentOutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // This would normally submit the data to a backend
+    console.log("Form data submitted:", formData);
+    console.log("Image data:", selectedImage);
     
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to list items for rent",
-        variant: "destructive"
-      });
-      return;
-    }
+    const newProductId = getNewProductId();
     
-    try {
-      // Create new product
-      const newProduct = {
-        owner_id: user.id,
-        title: formData.title,
-        description: formData.description,
-        image_url: selectedImage || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
-        price: parseInt(formData.rentalPrice) || 0,
-        deposit: parseInt(formData.deposit) || 0,
-        size: formData.size.toUpperCase(),
-        condition: formData.condition,
-        age: formData.age
-      };
-      
-      const savedProduct = await createProduct(newProduct);
-      
-      // Update products list and reset form
-      setProducts(prev => [savedProduct, ...prev]);
-      setListedItems(prev => [...prev, savedProduct.id]);
-      
-      // Reset form
-      setFormData({
-        title: '',
-        description: '',
-        category: '',
-        size: '',
-        condition: '',
-        rentalPrice: '',
-        deposit: '',
-        age: ''
-      });
-      setSelectedImage(null);
-      
-      // Show success feedback
-      toast({
-        title: "Item Listed Successfully",
-        description: "Your item has been listed for rent",
-      });
-      
-      // Switch to browse tab to see the new item
-      setActiveTab('browse');
-    } catch (error) {
-      console.error('Error listing product:', error);
-      toast({
-        title: "Error",
-        description: "Failed to list your item. Please try again.",
-        variant: "destructive"
-      });
-    }
+    // Create a new product from the form data
+    const newProduct = {
+      id: newProductId,
+      title: formData.title,
+      image: selectedImage || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D',
+      price: parseInt(formData.rentalPrice) || 0,
+      deposit: parseInt(formData.deposit) || 0,
+      size: formData.size.toUpperCase(),
+      condition: formData.condition,
+      age: formData.age
+    };
+    
+    // Add the new product to the list
+    setAllProducts(prev => [...prev, newProduct]);
+    
+    // Add the new product to the listed items
+    setListedItems(prev => [...prev, newProductId]);
+    
+    // Reset form
+    setFormData({
+      title: '',
+      description: '',
+      category: '',
+      size: '',
+      condition: '',
+      rentalPrice: '',
+      deposit: '',
+      age: ''
+    });
+    setSelectedImage(null);
+    
+    // Show success feedback
+    toast({
+      title: "Item Listed Successfully",
+      description: "Your item has been listed for rent",
+    });
+    
+    // Switch to browse tab to see the new item
+    setActiveTab('browse');
   };
   
   // Handler for adding to cart
-  const handleAddToCart = async (productId: string) => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to add items to your cart",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      await addToCart(productId, user.id);
-      setCartItems(prev => [...prev, productId]);
-      
-      toast({
-        title: "Added to cart",
-        description: "Item has been added to your cart",
-      });
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    }
+  const handleAddToCart = (productId: number) => {
+    setCartItems(prev => {
+      // Check if item is already in cart
+      if (prev.includes(productId)) {
+        toast({
+          title: "Already in cart",
+          description: "This item is already in your cart",
+        });
+        return prev;
+      } else {
+        toast({
+          title: "Added to cart",
+          description: "Item has been added to your cart",
+        });
+        return [...prev, productId];
+      }
+    });
   };
   
   // Handler for removing from cart
-  const handleRemoveFromCart = async (productId: string) => {
-    if (!user) return;
-    
-    try {
-      await removeFromCart(productId, user.id);
-      setCartItems(prev => prev.filter(id => id !== productId));
-      
-      toast({
-        title: "Removed from cart",
-        description: "Item has been removed from your cart",
-      });
-    } catch (error) {
-      console.error('Error removing from cart:', error);
-    }
+  const handleRemoveFromCart = (productId: number) => {
+    setCartItems(prev => prev.filter(id => id !== productId));
+    toast({
+      title: "Removed from cart",
+      description: "Item has been removed from your cart",
+    });
   };
   
   // Handler for toggling favorites
-  const handleToggleFavorite = async (productId: string) => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to save favorites",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      if (favorites.includes(productId)) {
-        await removeFromFavorites(productId, user.id);
-        setFavorites(prev => prev.filter(id => id !== productId));
-        
+  const handleToggleFavorite = (productId: number) => {
+    setFavorites(prev => {
+      if (prev.includes(productId)) {
         toast({
           title: "Removed from favorites",
           description: "Item has been removed from your favorites",
         });
+        return prev.filter(id => id !== productId);
       } else {
-        await addToFavorites(productId, user.id);
-        setFavorites(prev => [...prev, productId]);
-        
         toast({
           title: "Added to favorites",
           description: "Item has been added to your favorites",
         });
+        return [...prev, productId];
       }
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-    }
+    });
   };
   
   // Handler for opening messages with specific owner
-  const handleMessageOwner = (productId: string) => {
+  const handleMessageOwner = (productId: number) => {
     // Find the product
-    const product = products.find(p => p.id === productId);
-    
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to send messages",
-        variant: "destructive"
-      });
-      return;
-    }
+    const product = allProducts.find(p => p.id === productId);
     
     if (product) {
       // Call the parent component's onMessageOwner function
@@ -314,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     } else {
       // Handle case where there's no specific product (general messages)
       if (onMessageOwner) {
-        onMessageOwner("0", "", "ReWear Support");
+        onMessageOwner(0, "", "ReWear Support");
       }
       
       toast({
@@ -322,30 +217,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
         description: "Opening your message history",
       });
     }
-  };
-  
-  // Handler for proceeding to checkout
-  const handleProceedToCheckout = () => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to checkout",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (cartItems.length === 0) {
-      toast({
-        title: "Empty Cart",
-        description: "Your cart is empty. Add items before checkout.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    navigate('/checkout');
-    setShowCart(false);
   };
   
   // Handler for opening cart
@@ -362,17 +233,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   const handleOpenAccount = () => {
     setShowProfile(true);
   };
-  
-  if (authLoading || loadingProducts) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4">Loading...</p>
-        </div>
-      </div>
-    );
-  }
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -412,13 +272,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
               </button>
               <button 
                 className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
-                onClick={() => handleMessageOwner("0")}
+                onClick={() => handleMessageOwner(0)}
                 aria-label="Messages"
               >
                 <MessageSquare size={20} />
-                {messageCount > 0 && (
+                {Object.keys(messageHistory).length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                    {messageCount}
+                    {Object.keys(messageHistory).length}
                   </span>
                 )}
               </button>
@@ -482,7 +342,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                     </h2>
                     
                     <div className="space-y-6">
-                      {/* Filter options */}
+                      {/* Category Filter */}
                       <div>
                         <Label htmlFor="category">Category</Label>
                         <Select defaultValue="all">
@@ -597,74 +457,63 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                       </div>
                     </div>
                     
-                    {products.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center p-10 bg-gray-50 rounded-lg border border-dashed">
-                        <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-                        <h3 className="text-xl font-medium mb-2">No products available</h3>
-                        <p className="text-muted-foreground text-center mb-4">
-                          There are currently no items listed for rent. Be the first to share your wardrobe!
-                        </p>
-                        <Button onClick={() => setActiveTab('rent-out')}>List Your First Item</Button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                        {products.map((product) => (
-                          <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                            <div className="aspect-square relative overflow-hidden bg-gray-100">
-                              <img
-                                src={product.image_url || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D'}
-                                alt={product.title}
-                                className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                      {allProducts.map((product) => (
+                        <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                          <div className="aspect-square relative overflow-hidden bg-gray-100">
+                            <img
+                              src={product.image}
+                              alt={product.title}
+                              className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                            />
+                            <button 
+                              className={`absolute top-3 right-3 w-8 h-8 rounded-full 
+                                ${favorites.includes(product.id) ? 'bg-red-50' : 'bg-white/80'} 
+                                flex items-center justify-center hover:bg-white`}
+                              onClick={() => handleToggleFavorite(product.id)}
+                            >
+                              <Heart 
+                                size={16} 
+                                className={favorites.includes(product.id) ? 'text-red-500 fill-red-500' : 'text-muted-foreground'}
                               />
-                              <button 
-                                className={`absolute top-3 right-3 w-8 h-8 rounded-full 
-                                  ${favorites.includes(product.id) ? 'bg-red-50' : 'bg-white/80'} 
-                                  flex items-center justify-center hover:bg-white`}
-                                onClick={() => handleToggleFavorite(product.id)}
-                              >
-                                <Heart 
-                                  size={16} 
-                                  className={favorites.includes(product.id) ? 'text-red-500 fill-red-500' : 'text-muted-foreground'}
-                                />
-                              </button>
+                            </button>
+                          </div>
+                          <CardContent className="p-4">
+                            <h3 className="font-medium text-lg mb-1 line-clamp-1">{product.title}</h3>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-primary font-semibold">₹{product.price}/day</span>
+                                <span className="text-xs text-muted-foreground">Deposit: ₹{product.deposit}</span>
+                              </div>
+                              <span className="text-xs px-2 py-1 bg-rewear-gray rounded-full">{product.size}</span>
                             </div>
-                            <CardContent className="p-4">
-                              <h3 className="font-medium text-lg mb-1 line-clamp-1">{product.title}</h3>
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-primary font-semibold">₹{product.price}/day</span>
-                                  <span className="text-xs text-muted-foreground">Deposit: ₹{product.deposit}</span>
-                                </div>
-                                <span className="text-xs px-2 py-1 bg-rewear-gray rounded-full">{product.size}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
-                                <span>{product.condition}</span>
-                                <span>Age: {product.age}</span>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  className="w-full"
-                                  onClick={() => handleAddToCart(product.id)}
-                                  disabled={cartItems.includes(product.id)}
-                                >
-                                  {cartItems.includes(product.id) ? 'Added to Cart' : 'Add to Cart'}
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  className="flex-shrink-0"
-                                  onClick={() => handleMessageOwner(product.id)}
-                                >
-                                  <MessageSquare size={16} />
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
+                            <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
+                              <span>{product.condition}</span>
+                              <span>Age: {product.age}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-full"
+                                onClick={() => handleAddToCart(product.id)}
+                                disabled={cartItems.includes(product.id)}
+                              >
+                                {cartItems.includes(product.id) ? 'Added to Cart' : 'Add to Cart'}
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="flex-shrink-0"
+                                onClick={() => handleMessageOwner(product.id)}
+                              >
+                                <MessageSquare size={16} />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </AnimatedContainer>
@@ -680,7 +529,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                 
                 <div className="max-w-3xl mx-auto">
                   <form onSubmit={handleRentOutSubmit} className="space-y-8">
-                    {/* Form fields */}
+                    {/* Item Photos */}
                     <div className="space-y-2">
                       <Label htmlFor="photos" className="text-lg font-medium">Item Photos</Label>
                       <p className="text-sm text-muted-foreground mb-4">
@@ -887,9 +736,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
           cartItems={cartItems} 
           onClose={() => setShowCart(false)} 
           onRemoveFromCart={handleRemoveFromCart}
-          onCheckout={handleProceedToCheckout}
-          onMessageOwner={(productId: string) => {
-            const product = products.find(p => p.id === productId);
+          onMessageOwner={(productId) => {
+            const product = allProducts.find(p => p.id === productId);
             if (product && onMessageOwner) {
               onMessageOwner(productId, product.title, "Owner");
               setShowCart(false);
