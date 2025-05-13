@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -25,13 +24,14 @@ import {
   addToFavorites, 
   removeFromFavorites, 
   getUserFavorites,
+  getUserCart,
   Product
 } from '@/lib/product-service';
 import { supabase } from '@/lib/supabase';
 
 // Update the Dashboard component to include the onMessageOwner props
 interface DashboardProps {
-  onMessageOwner?: (productId: number | string, productTitle: string, ownerName: string) => void;
+  onMessageOwner?: (productId: string | number, productTitle: string, ownerName: string) => void;
 }
 
 // Dashboard component
@@ -78,11 +78,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
         
         // If user is logged in, fetch favorites and cart
         if (user) {
+          // Get favorites
           const userFavorites = await getUserFavorites(user.id);
           setFavorites(userFavorites);
           
+          // Get user products
           const userProducts = await fetchUserProducts(user.id);
           setListedItems(userProducts.map(p => p.id));
+          
+          // Get cart items
+          const cartData = await getUserCart(user.id);
+          setCartItems(cartData.map(item => item.product_id));
 
           // Get message count
           const { data } = await supabase
@@ -282,9 +288,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   };
   
   // Handler for opening messages with specific owner
-  const handleMessageOwner = (productId: string | number, ownerId?: string) => {
+  const handleMessageOwner = (productId: string) => {
     // Find the product
-    const product = products.find(p => p.id === String(productId));
+    const product = products.find(p => p.id === productId);
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to send messages",
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (product) {
       // Call the parent component's onMessageOwner function
@@ -299,7 +314,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     } else {
       // Handle case where there's no specific product (general messages)
       if (onMessageOwner) {
-        onMessageOwner(0, "", "ReWear Support");
+        onMessageOwner("0", "", "ReWear Support");
       }
       
       toast({
@@ -397,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
               </button>
               <button 
                 className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
-                onClick={() => handleMessageOwner(0)}
+                onClick={() => handleMessageOwner("0")}
                 aria-label="Messages"
               >
                 <MessageSquare size={20} />
@@ -467,7 +482,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                     </h2>
                     
                     <div className="space-y-6">
-                      {/* Category Filter */}
+                      {/* Filter options */}
                       <div>
                         <Label htmlFor="category">Category</Label>
                         <Select defaultValue="all">
@@ -665,7 +680,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                 
                 <div className="max-w-3xl mx-auto">
                   <form onSubmit={handleRentOutSubmit} className="space-y-8">
-                    {/* Item Photos */}
+                    {/* Form fields */}
                     <div className="space-y-2">
                       <Label htmlFor="photos" className="text-lg font-medium">Item Photos</Label>
                       <p className="text-sm text-muted-foreground mb-4">
