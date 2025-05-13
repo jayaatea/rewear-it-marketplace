@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { AnimatedContainer } from '@/components/animated-container';
+import { useAuth } from '@/hooks/use-auth';
+import { Loader2 } from 'lucide-react';
 
 type FormType = 'login' | 'signup';
 
@@ -16,85 +18,119 @@ interface AuthFormProps {
 const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
   const { toast } = useToast();
   const [formType, setFormType] = useState<FormType>('login');
-  const [step, setStep] = useState<1 | 2>(1);
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [otp, setOtp] = useState('');
-  const [method, setMethod] = useState<'email' | 'phone'>('email');
   
-  const handleSubmitStep1 = (e: React.FormEvent) => {
+  // Login form state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Sign up form state
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
+  
+  const { signIn, signUp } = useAuth();
+  
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Missing fields",
+        description: "Please enter both email and password",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const { error } = await signIn(email, password);
+      if (error) {
+        throw error;
+      }
+      
+      onSuccess();
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "Failed to login. Please check your credentials.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
-    if (method === 'email' && !email) {
+    if (!signupEmail || !signupPassword || !username) {
       toast({
-        title: "Email required",
-        description: "Please enter your email address",
+        title: "Missing fields",
+        description: "Please fill all required fields",
         variant: "destructive"
       });
       return;
     }
     
-    if (method === 'phone' && !phone) {
+    if (signupPassword !== confirmPassword) {
       toast({
-        title: "Phone number required",
-        description: "Please enter your phone number",
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match",
         variant: "destructive"
       });
       return;
     }
     
-    if (formType === 'signup' && !name) {
+    if (signupPassword.length < 6) {
       toast({
-        title: "Name required",
-        description: "Please enter your name",
+        title: "Password too short",
+        description: "Password must be at least 6 characters",
         variant: "destructive"
       });
       return;
     }
     
-    // Mock sending OTP
-    toast({
-      title: `OTP Sent`,
-      description: `A verification code has been sent to your ${method}`,
-    });
+    setIsLoading(true);
     
-    setStep(2);
-  };
-  
-  const handleVerifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!otp || otp.length < 4) {
+    try {
+      const { error } = await signUp(signupEmail, signupPassword, username, fullName);
+      
+      if (error) {
+        throw error;
+      }
+      
       toast({
-        title: "Invalid OTP",
-        description: "Please enter a valid verification code",
+        title: "Account created",
+        description: "Welcome to ReWear! You can now sign in with your credentials.",
+      });
+      
+      // Switch to login tab after successful signup
+      setFormType('login');
+      setEmail(signupEmail);
+      
+    } catch (error: any) {
+      toast({
+        title: "Sign up failed",
+        description: error.message || "Failed to create account. Please try again.",
         variant: "destructive"
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Mock successful verification
-    toast({
-      title: "Success!",
-      description: formType === 'login' ? "Login successful" : "Account created successfully",
-    });
-    
-    onSuccess();
-  };
-  
-  const handleBack = () => {
-    setStep(1);
-    setOtp('');
   };
   
   return (
     <AnimatedContainer>
       <Tabs 
-        defaultValue="login" 
-        className="w-full" 
+        value={formType} 
         onValueChange={(value) => setFormType(value as FormType)}
+        className="w-full"
       >
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="login">Login</TabsTrigger>
@@ -102,168 +138,122 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
         </TabsList>
         
         <TabsContent value="login" className="space-y-4">
-          {step === 1 ? (
-            <form onSubmit={handleSubmitStep1} className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex gap-4 mb-4">
-                  <Button
-                    type="button"
-                    variant={method === 'email' ? 'default' : 'outline'}
-                    onClick={() => setMethod('email')}
-                    className="flex-1"
-                  >
-                    Email
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={method === 'phone' ? 'default' : 'outline'}
-                    onClick={() => setMethod('phone')}
-                    className="flex-1"
-                  >
-                    Phone
-                  </Button>
-                </div>
-                
-                {method === 'email' ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email address"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter your phone number"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                    />
-                  </div>
-                )}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your.email@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <a href="#" className="text-xs text-primary hover:underline">
+                  Forgot password?
+                </a>
               </div>
-              <Button className="w-full" type="submit">Continue</Button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="otp">Verification Code</Label>
-                <Input
-                  id="otp"
-                  type="text"
-                  placeholder="Enter the OTP sent to you"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                />
-                <p className="text-sm text-muted-foreground">
-                  We've sent a verification code to {method === 'email' ? email : phone}
-                </p>
-              </div>
-              <div className="flex gap-4">
-                <Button variant="outline" type="button" onClick={handleBack} className="flex-1">
-                  Back
-                </Button>
-                <Button className="flex-1" type="submit">
-                  Verify & Login
-                </Button>
-              </div>
-            </form>
-          )}
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            
+            <Button className="w-full" type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging in...
+                </>
+              ) : (
+                "Login"
+              )}
+            </Button>
+          </form>
         </TabsContent>
         
         <TabsContent value="signup" className="space-y-4">
-          {step === 1 ? (
-            <form onSubmit={handleSubmitStep1} className="space-y-4">
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                
-                <div className="flex gap-4 mb-4">
-                  <Button
-                    type="button"
-                    variant={method === 'email' ? 'default' : 'outline'}
-                    onClick={() => setMethod('email')}
-                    className="flex-1"
-                  >
-                    Email
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={method === 'phone' ? 'default' : 'outline'}
-                    onClick={() => setMethod('phone')}
-                    className="flex-1"
-                  >
-                    Phone
-                  </Button>
-                </div>
-                
-                {method === 'email' ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="Enter your email address"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-phone">Phone Number</Label>
-                    <Input
-                      id="signup-phone"
-                      type="tel"
-                      placeholder="Enter your phone number"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                    />
-                  </div>
-                )}
-              </div>
-              <Button className="w-full" type="submit">Continue</Button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signup-otp">Verification Code</Label>
-                <Input
-                  id="signup-otp"
-                  type="text"
-                  placeholder="Enter the OTP sent to you"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                />
-                <p className="text-sm text-muted-foreground">
-                  We've sent a verification code to {method === 'email' ? email : phone}
-                </p>
-              </div>
-              <div className="flex gap-4">
-                <Button variant="outline" type="button" onClick={handleBack} className="flex-1">
-                  Back
-                </Button>
-                <Button className="flex-1" type="submit">
-                  Create Account
-                </Button>
-              </div>
-            </form>
-          )}
+          <form onSubmit={handleSignUp} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="signup-email">Email</Label>
+              <Input
+                id="signup-email"
+                type="email"
+                placeholder="your.email@example.com"
+                value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="Choose a username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="full-name">Full Name (Optional)</Label>
+              <Input
+                id="full-name"
+                type="text"
+                placeholder="Your full name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="signup-password">Password</Label>
+              <Input
+                id="signup-password"
+                type="password"
+                placeholder="Create a password"
+                value={signupPassword}
+                onChange={(e) => setSignupPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            
+            <Button className="w-full" type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
+                "Create Account"
+              )}
+            </Button>
+          </form>
         </TabsContent>
       </Tabs>
     </AnimatedContainer>
