@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -11,11 +12,22 @@ import { AnimatedContainer } from '@/components/animated-container';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, ShoppingCart, User, Home, Tag, Camera, Heart, MessageSquare } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { mockProducts, getNewProductId } from '@/data/products';
+import { mockProducts } from '@/data/products';
 import CartPage from '@/components/cart/cart-page';
 import FavoritesPage from '@/components/favorites/favorites-page';
 import ProfilePage from '@/components/profile/profile-page';
 import { useAuth } from '@/hooks/use-auth';
+import { 
+  fetchProducts, 
+  fetchUserProducts, 
+  addToCart, 
+  removeFromCart, 
+  createProduct, 
+  addToFavorites, 
+  removeFromFavorites, 
+  getUserFavorites 
+} from '@/lib/product-service';
+import { supabase } from '@/integrations/supabase/client';
 
 // Update the Dashboard component to include the onMessageOwner props
 interface DashboardProps {
@@ -27,7 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('browse');
-  const [priceRange, setPriceRange] = useState([0, 3750]); // Price range in INR
+  const [priceRange, setPriceRange] = useState<number[]>([0, 3750]); // Price range in INR
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -52,6 +64,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   const [showProfile, setShowProfile] = useState(false);
   const [listedItems, setListedItems] = useState<string[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [messageCount, setMessageCount] = useState(0);
   
   // Fetch products and user data
   useEffect(() => {
@@ -70,6 +83,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
           
           const userProducts = await fetchUserProducts(user.id);
           setListedItems(userProducts.map(p => p.id));
+
+          // Get message count
+          const { data } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('receiver_id', user.id)
+            .eq('read', false);
+          
+          setMessageCount(data?.length || 0);
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -198,6 +220,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     try {
       await addToCart(productId, user.id);
       setCartItems(prev => [...prev, productId]);
+      
+      toast({
+        title: "Added to cart",
+        description: "Item has been added to your cart",
+      });
     } catch (error) {
       console.error('Error adding to cart:', error);
     }
@@ -257,7 +284,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   // Handler for opening messages with specific owner
   const handleMessageOwner = (productId: number, ownerId?: string) => {
     // Find the product
-    const product = products.find(p => p.id === productId);
+    const product = products.find(p => p.id === String(productId));
     
     if (product) {
       // Call the parent component's onMessageOwner function
@@ -374,9 +401,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                 aria-label="Messages"
               >
                 <MessageSquare size={20} />
-                {Object.keys(messageHistory).length > 0 && (
+                {messageCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                    {Object.keys(messageHistory).length}
+                    {messageCount}
                   </span>
                 )}
               </button>
@@ -560,7 +587,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                         <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
                           <div className="aspect-square relative overflow-hidden bg-gray-100">
                             <img
-                              src={product.image_url}
+                              src={product.image_url || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D'}
                               alt={product.title}
                               className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
                             />
@@ -831,11 +858,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
       {/* Cart Modal */}
       {showCart && (
         <CartPage 
-          cartItems={cartItems} 
+          cartItems={cartItems.map(id => id.toString())} 
           onClose={() => setShowCart(false)} 
           onRemoveFromCart={handleRemoveFromCart}
           onCheckout={handleProceedToCheckout}
-          onMessageOwner={(productId) => {
+          onMessageOwner={(productId: string) => {
             const product = products.find(p => p.id === productId);
             if (product && onMessageOwner) {
               onMessageOwner(parseInt(productId), product.title, "Owner");
@@ -860,7 +887,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
         <ProfilePage 
           onClose={() => setShowProfile(false)} 
           onLogout={handleLogout}
-          cartItems={cartItems}
+          cartItems={cartItems.map(id => id.toString())}
           listedItems={listedItems}
         />
       )}
