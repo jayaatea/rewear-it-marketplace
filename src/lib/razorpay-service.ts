@@ -1,6 +1,7 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { CartItem } from '@/types/cart';
 
 // Define the window interface to include Razorpay
 declare global {
@@ -31,7 +32,7 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 // Create Razorpay order
 export const createRazorpayOrder = async (
   amount: number, 
-  cart: any[], 
+  cart: CartItem[], 
   currency: string = 'INR'
 ): Promise<{ orderId: string } | null> => {
   try {
@@ -118,7 +119,7 @@ export const processRazorpayPayment = async (
 
 // Save order to database after successful payment
 export const saveOrder = async (
-  cartItems: any[],
+  cartItems: CartItem[],
   paymentId: string,
   totalAmount: number
 ) => {

@@ -9,7 +9,7 @@ import { ChevronLeft, Calendar, CreditCard } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getUserCart } from '@/lib/product-service';
 import { processRazorpayPayment, createRazorpayOrder, saveOrder } from '@/lib/razorpay-service';
-import { CartItem } from '@/types/cart';
+import { CartItem, RawCartItem } from '@/types/cart';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -35,8 +35,23 @@ const Checkout = () => {
       
       try {
         setLoadingCart(true);
-        const userCart = await getUserCart(user.id);
-        setCartItems(userCart as CartItem[]);
+        const rawCartData = await getUserCart(user.id);
+        
+        // Convert raw data to CartItem type
+        const typedCartItems = (rawCartData as RawCartItem[]).map(item => ({
+          ...item,
+          products: {
+            id: item.products.id,
+            title: item.products.title,
+            price: item.products.price,
+            deposit: item.products.deposit || 0,
+            image_url: item.products.image_url,
+            size: item.products.size,
+            condition: item.products.condition
+          }
+        }));
+        
+        setCartItems(typedCartItems as CartItem[]);
       } catch (error) {
         console.error('Error fetching cart:', error);
         toast.error('Failed to load cart items');
