@@ -77,8 +77,8 @@ export const useRazorpay = () => {
     if (!orderData) return;
 
     try {
-      const { session } = await supabase.auth.getSession();
-      const user = session?.user;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
       
       if (!user) {
         throw new Error("User not authenticated");
