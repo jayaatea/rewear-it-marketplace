@@ -5,17 +5,13 @@ import { Input } from '@/components/ui/input';
 import { MessageCircle, X } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { mockProducts } from '@/data/products';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/use-auth';
 
 interface Message {
-  id: string;
+  id: number;
   text: string;
   sender: 'user' | 'owner';
   timestamp: Date;
-  product_id?: number;
-  sender_id: string;
-  receiver_id: string;
+  productId?: number;
 }
 
 interface ChatBotProps {
@@ -33,142 +29,74 @@ const ChatBot: React.FC<ChatBotProps> = ({
   const [message, setMessage] = useState('');
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [currentProductId, setCurrentProductId] = useState<number | undefined>(productId);
-  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
 
-  // Load messages from Supabase when component mounts or user changes
+  // Initialize messages from "localStorage" on component mount
   useEffect(() => {
-    if (user) {
-      loadMessages();
+    const storedMessages = localStorage.getItem('chatMessages');
+    if (storedMessages) {
+      try {
+        const parsedMessages = JSON.parse(storedMessages);
+        // Convert string timestamps back to Date objects
+        const messagesWithDateObjects = parsedMessages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        setAllMessages(messagesWithDateObjects);
+      } catch (e) {
+        console.error("Error parsing stored messages:", e);
+      }
     }
-  }, [user]);
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('chatMessages', JSON.stringify(allMessages));
+  }, [allMessages]);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [allMessages, currentProductId]);
 
-  const loadMessages = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order('created_at', { ascending: true });
-        
-      if (error) throw error;
-      
-      // Convert string dates to Date objects
-      const formattedMessages = data.map(msg => ({
-        ...msg,
-        timestamp: new Date(msg.created_at),
-      }));
-      
-      setAllMessages(formattedMessages);
-    } catch (error) {
-      console.error("Error loading messages:", error);
-      toast({
-        title: "Error loading messages",
-        description: "Unable to load your messages. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Get messages for current product or general messages (productId = undefined)
   const currentMessages = allMessages.filter(msg => 
-    (currentProductId && msg.product_id === currentProductId) || 
-    (!currentProductId && !msg.product_id)
+    (currentProductId && msg.productId === currentProductId) || 
+    (!currentProductId && !msg.productId)
   );
 
-  const handleOpenChat = async (productId?: number, productName?: string, owner?: string) => {
+  const handleOpenChat = (productId?: number, productName?: string, owner?: string) => {
     setCurrentProductId(productId);
-    
-    if (!user) {
-      toast({
-        title: "Please sign in",
-        description: "You need to be signed in to send messages",
-      });
-      return;
-    }
     
     // If product details are provided, use them
     if (productId && productName) {
       // Find if we already have any messages for this product
-      const hasExistingMessages = allMessages.some(msg => msg.product_id === productId);
+      const hasExistingMessages = allMessages.some(msg => msg.productId === productId);
       
       // If no existing messages, add a welcome message from the owner
       if (!hasExistingMessages) {
         const product = mockProducts.find(p => p.id === productId);
-        
-        // In a real app, we would fetch the owner ID from the product
-        // For now, we'll simulate with a fixed owner ID
-        const ownerId = "owner-id"; // This would come from the product owner
-        
-        const newOwnerMessage = {
+        const newOwnerMessage: Message = {
+          id: allMessages.length + 1,
           text: `Hello! I'm ${owner || 'the owner'} of ${productName}. How can I help you?`,
-          sender: 'owner' as const,
-          product_id: productId,
-          sender_id: ownerId,
-          receiver_id: user.id
+          sender: 'owner',
+          timestamp: new Date(),
+          productId: productId
         };
         
-        try {
-          const { data, error } = await supabase
-            .from('messages')
-            .insert([newOwnerMessage])
-            .select();
-            
-          if (error) throw error;
-          
-          if (data) {
-            const formattedMessage = {
-              ...data[0],
-              timestamp: new Date(data[0].created_at)
-            };
-            setAllMessages(prev => [...prev, formattedMessage]);
-          }
-        } catch (error) {
-          console.error("Error saving welcome message:", error);
-        }
+        setAllMessages(prev => [...prev, newOwnerMessage]);
       }
     } else if (!currentMessages.length) {
       // For general chat, add a welcome message if no messages exist
-      const supportId = "rewear-support";
-      
-      const newOwnerMessage = {
+      const newOwnerMessage: Message = {
+        id: allMessages.length + 1,
         text: `Hello! How can I help you today?`,
-        sender: 'owner' as const,
-        sender_id: supportId,
-        receiver_id: user.id
+        sender: 'owner',
+        timestamp: new Date(),
       };
       
-      try {
-        const { data, error } = await supabase
-          .from('messages')
-          .insert([newOwnerMessage])
-          .select();
-          
-        if (error) throw error;
-        
-        if (data) {
-          const formattedMessage = {
-            ...data[0],
-            timestamp: new Date(data[0].created_at)
-          };
-          setAllMessages(prev => [...prev, formattedMessage]);
-        }
-      } catch (error) {
-        console.error("Error saving welcome message:", error);
-      }
+      setAllMessages(prev => [...prev, newOwnerMessage]);
     }
     
     setIsOpen(true);
@@ -178,115 +106,71 @@ const ChatBot: React.FC<ChatBotProps> = ({
     });
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !user) return;
+    if (!message.trim()) return;
 
-    // Add user message to Supabase
-    const newUserMessage = {
+    // Add user message
+    const newUserMessage: Message = {
+      id: allMessages.length + 1,
       text: message,
-      sender: 'user' as const,
-      product_id: currentProductId,
-      sender_id: user.id,
-      // In a real app, we would get the actual receiver ID based on the product owner
-      // For now, simulate with a fixed value
-      receiver_id: currentProductId ? "owner-id" : "rewear-support"
+      sender: 'user',
+      timestamp: new Date(),
+      productId: currentProductId
     };
     
+    setAllMessages(prev => [...prev, newUserMessage]);
     setMessage('');
     
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert([newUserMessage])
-        .select();
-        
-      if (error) throw error;
-      
-      if (data) {
-        const formattedMessage = {
-          ...data[0],
-          timestamp: new Date(data[0].created_at)
-        };
-        setAllMessages(prev => [...prev, formattedMessage]);
+    // Simulate owner response after a delay
+    setTimeout(() => {
+      let ownerResponse = "";
+
+      // Check if message contains specific keywords and respond accordingly
+      const lowerMessage = message.toLowerCase();
+      if (lowerMessage.includes("price") || lowerMessage.includes("cost") || lowerMessage.includes("how much")) {
+        ownerResponse = `The rental price is listed on the product page. If you're interested, you can go ahead and add it to your cart!`;
+      } else if (lowerMessage.includes("available") || lowerMessage.includes("when") || lowerMessage.includes("dates")) {
+        ownerResponse = "Yes, this item is available for the weekend! When do you need it exactly?";
+      } else if (lowerMessage.includes("size") || lowerMessage.includes("fit")) {
+        ownerResponse = "It fits true to size. If you're usually a medium, this will fit perfectly.";
+      } else if (lowerMessage.includes("delivery") || lowerMessage.includes("shipping")) {
+        ownerResponse = "I can arrange delivery to your location for an additional ₹250.";
+      } else if (lowerMessage.includes("material") || lowerMessage.includes("fabric")) {
+        ownerResponse = "The fabric is soft cotton with a silk lining. It's really comfortable to wear!";
+      } else if (lowerMessage.includes("condition") || lowerMessage.includes("quality")) {
+        ownerResponse = "I've had this item for just a short time and it's in excellent condition, almost like new!";
+      } else if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
+        ownerResponse = `Hi there! Thanks for your interest. How can I help you today?`;
+      } else {
+        // Default responses if no keywords match
+        const responses = [
+          "Yes, this item is available for the weekend!",
+          "The fabric is soft cotton with a silk lining.",
+          "I can arrange delivery to your location for an additional ₹250.",
+          "The item fits true to size. If you're usually a medium, this will fit perfectly.",
+          "I've had many people rent this with great feedback!"
+        ];
+        ownerResponse = responses[Math.floor(Math.random() * responses.length)];
       }
       
-      // Simulate owner response after a delay
-      setTimeout(async () => {
-        let ownerResponse = "";
-
-        // Check if message contains specific keywords and respond accordingly
-        const lowerMessage = message.toLowerCase();
-        if (lowerMessage.includes("price") || lowerMessage.includes("cost") || lowerMessage.includes("how much")) {
-          ownerResponse = `The rental price is listed on the product page. If you're interested, you can go ahead and add it to your cart!`;
-        } else if (lowerMessage.includes("available") || lowerMessage.includes("when") || lowerMessage.includes("dates")) {
-          ownerResponse = "Yes, this item is available for the weekend! When do you need it exactly?";
-        } else if (lowerMessage.includes("size") || lowerMessage.includes("fit")) {
-          ownerResponse = "It fits true to size. If you're usually a medium, this will fit perfectly.";
-        } else if (lowerMessage.includes("delivery") || lowerMessage.includes("shipping")) {
-          ownerResponse = "I can arrange delivery to your location for an additional ₹250.";
-        } else if (lowerMessage.includes("material") || lowerMessage.includes("fabric")) {
-          ownerResponse = "The fabric is soft cotton with a silk lining. It's really comfortable to wear!";
-        } else if (lowerMessage.includes("condition") || lowerMessage.includes("quality")) {
-          ownerResponse = "I've had this item for just a short time and it's in excellent condition, almost like new!";
-        } else if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
-          ownerResponse = `Hi there! Thanks for your interest. How can I help you today?`;
-        } else {
-          // Default responses if no keywords match
-          const responses = [
-            "Yes, this item is available for the weekend!",
-            "The fabric is soft cotton with a silk lining.",
-            "I can arrange delivery to your location for an additional ₹250.",
-            "The item fits true to size. If you're usually a medium, this will fit perfectly.",
-            "I've had many people rent this with great feedback!"
-          ];
-          ownerResponse = responses[Math.floor(Math.random() * responses.length)];
-        }
-        
-        const ownerReplyMessage = {
-          text: ownerResponse,
-          sender: 'owner' as const,
-          product_id: currentProductId,
-          // For a real app, we would use the actual owner ID
-          sender_id: currentProductId ? "owner-id" : "rewear-support",
-          receiver_id: user.id
-        };
-        
-        try {
-          const { data, error } = await supabase
-            .from('messages')
-            .insert([ownerReplyMessage])
-            .select();
-            
-          if (error) throw error;
-          
-          if (data) {
-            const formattedMessage = {
-              ...data[0],
-              timestamp: new Date(data[0].created_at)
-            };
-            setAllMessages(prev => [...prev, formattedMessage]);
-          }
-        } catch (error) {
-          console.error("Error saving response message:", error);
-        }
-      }, 1000);
+      const ownerMessage: Message = {
+        id: allMessages.length + 2,
+        text: ownerResponse,
+        sender: 'owner',
+        timestamp: new Date(),
+        productId: currentProductId
+      };
       
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast({
-        title: "Error sending message",
-        description: "Your message couldn't be sent. Please try again.",
-        variant: "destructive"
-      });
-    }
+      setAllMessages(prev => [...prev, ownerMessage]);
+    }, 1000);
   };
 
   return (
     <>
       {/* Chat bubble button */}
       <Button
-        onClick={() => handleOpenChat(productId, productTitle, ownerName)}
+        onClick={() => handleOpenChat()}
         className="fixed bottom-6 right-6 rounded-full h-14 w-14 shadow-lg bg-primary z-50 flex items-center justify-center p-0"
         aria-label="Chat with owner"
       >
@@ -316,11 +200,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
 
           {/* Messages area */}
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-[300px]">
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading messages...
-              </div>
-            ) : currentMessages.length > 0 ? (
+            {currentMessages.length > 0 ? (
               currentMessages.map((msg) => (
                 <div 
                   key={msg.id} 
@@ -358,15 +238,9 @@ const ChatBot: React.FC<ChatBotProps> = ({
                 onChange={(e) => setMessage(e.target.value)} 
                 placeholder="Type your message..." 
                 className="flex-1"
-                disabled={!user}
               />
-              <Button type="submit" disabled={!user}>Send</Button>
+              <Button type="submit">Send</Button>
             </div>
-            {!user && (
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                Please sign in to send messages
-              </p>
-            )}
           </form>
         </div>
       )}
