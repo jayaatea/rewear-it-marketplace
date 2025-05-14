@@ -172,6 +172,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     });
   };
   
+  // Handler for clearing the cart
+  const handleClearCart = () => {
+    setCartItems([]);
+  };
+  
   // Handler for toggling favorites
   const handleToggleFavorite = (productId: number) => {
     setFavorites(prev => {
@@ -736,6 +741,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
           cartItems={cartItems} 
           onClose={() => setShowCart(false)} 
           onRemoveFromCart={handleRemoveFromCart}
+          onClearCart={handleClearCart}
           onMessageOwner={(productId) => {
             const product = allProducts.find(p => p.id === productId);
             if (product && onMessageOwner) {

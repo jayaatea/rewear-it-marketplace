@@ -1,34 +1,64 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { X, MessageSquare } from 'lucide-react';
 import { mockProducts } from '@/data/products';
 import { useToast } from '@/hooks/use-toast';
+import CheckoutPage from '@/components/checkout/checkout-page';
 
 interface CartPageProps {
   cartItems: number[];
   onClose: () => void;
   onRemoveFromCart: (id: number) => void;
   onMessageOwner: (productId: number) => void;
+  onClearCart?: () => void;
 }
 
-const CartPage: React.FC<CartPageProps> = ({ cartItems, onClose, onRemoveFromCart, onMessageOwner }) => {
+const CartPage: React.FC<CartPageProps> = ({ 
+  cartItems, 
+  onClose, 
+  onRemoveFromCart, 
+  onMessageOwner, 
+  onClearCart 
+}) => {
   const { toast } = useToast();
+  const [showCheckout, setShowCheckout] = useState(false);
+  
   const cartProducts = mockProducts.filter(product => cartItems.includes(product.id));
   const total = cartProducts.reduce((sum, product) => sum + product.price, 0);
 
   const handleCheckout = () => {
-    toast({
-      title: "Checkout initiated",
-      description: "Moving to payment process",
-    });
+    setShowCheckout(true);
   };
   
   const handleMessageOwner = (productId: number) => {
     onMessageOwner(productId);
     onClose(); // Close the cart modal
   };
+
+  const handleCompleteOrder = () => {
+    toast({
+      title: "Order Placed",
+      description: "Your rental items have been ordered successfully.",
+    });
+    
+    if (onClearCart) {
+      onClearCart();
+    }
+    
+    onClose();
+  };
+
+  if (showCheckout) {
+    return (
+      <CheckoutPage 
+        cartItems={cartItems} 
+        onClose={() => setShowCheckout(false)}
+        onCompleteOrder={handleCompleteOrder}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
