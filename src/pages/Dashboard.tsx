@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -10,9 +9,8 @@ import { Slider } from '@/components/ui/slider';
 import RewearLogo from '@/components/rewear-logo';
 import { AnimatedContainer } from '@/components/animated-container';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ShoppingCart, User, Home, Tag, Camera, Heart, MessageSquare } from 'lucide-react';
+import { Search, Filter, ShoppingCart, User, Home, Tag, Camera, Heart, MessageSquare, AlertCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { mockProducts } from '@/data/products';
 import CartPage from '@/components/cart/cart-page';
 import FavoritesPage from '@/components/favorites/favorites-page';
 import ProfilePage from '@/components/profile/profile-page';
@@ -25,13 +23,15 @@ import {
   createProduct, 
   addToFavorites, 
   removeFromFavorites, 
-  getUserFavorites 
+  getUserFavorites,
+  getUserCart,
+  Product
 } from '@/lib/product-service';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 
 // Update the Dashboard component to include the onMessageOwner props
 interface DashboardProps {
-  onMessageOwner?: (productId: number, productTitle: string, ownerName: string) => void;
+  onMessageOwner?: (productId: string | number, productTitle: string, ownerName: string) => void;
 }
 
 // Dashboard component
@@ -56,7 +56,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   const { user, loading: authLoading } = useAuth();
   
   // State for products and user actions
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showCart, setShowCart] = useState(false);
@@ -78,11 +78,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
         
         // If user is logged in, fetch favorites and cart
         if (user) {
+          // Get favorites
           const userFavorites = await getUserFavorites(user.id);
           setFavorites(userFavorites);
           
+          // Get user products
           const userProducts = await fetchUserProducts(user.id);
           setListedItems(userProducts.map(p => p.id));
+          
+          // Get cart items
+          const cartData = await getUserCart(user.id);
+          setCartItems(cartData.map(item => item.product_id));
 
           // Get message count
           const { data } = await supabase
@@ -282,9 +288,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
   };
   
   // Handler for opening messages with specific owner
-  const handleMessageOwner = (productId: number, ownerId?: string) => {
+  const handleMessageOwner = (productId: string) => {
     // Find the product
-    const product = products.find(p => p.id === String(productId));
+    const product = products.find(p => p.id === productId);
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to send messages",
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (product) {
       // Call the parent component's onMessageOwner function
@@ -299,7 +314,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
     } else {
       // Handle case where there's no specific product (general messages)
       if (onMessageOwner) {
-        onMessageOwner(0, "", "ReWear Support");
+        onMessageOwner("0", "", "ReWear Support");
       }
       
       toast({
@@ -397,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
               </button>
               <button 
                 className="w-10 h-10 rounded-full bg-rewear-gray/50 flex items-center justify-center text-muted-foreground hover:text-primary relative"
-                onClick={() => handleMessageOwner(0)}
+                onClick={() => handleMessageOwner("0")}
                 aria-label="Messages"
               >
                 <MessageSquare size={20} />
@@ -467,7 +482,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                     </h2>
                     
                     <div className="space-y-6">
-                      {/* Category Filter */}
+                      {/* Filter options */}
                       <div>
                         <Label htmlFor="category">Category</Label>
                         <Select defaultValue="all">
@@ -582,63 +597,74 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                      {products.map((product) => (
-                        <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                          <div className="aspect-square relative overflow-hidden bg-gray-100">
-                            <img
-                              src={product.image_url || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D'}
-                              alt={product.title}
-                              className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
-                            />
-                            <button 
-                              className={`absolute top-3 right-3 w-8 h-8 rounded-full 
-                                ${favorites.includes(product.id) ? 'bg-red-50' : 'bg-white/80'} 
-                                flex items-center justify-center hover:bg-white`}
-                              onClick={() => handleToggleFavorite(product.id)}
-                            >
-                              <Heart 
-                                size={16} 
-                                className={favorites.includes(product.id) ? 'text-red-500 fill-red-500' : 'text-muted-foreground'}
+                    {products.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center p-10 bg-gray-50 rounded-lg border border-dashed">
+                        <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
+                        <h3 className="text-xl font-medium mb-2">No products available</h3>
+                        <p className="text-muted-foreground text-center mb-4">
+                          There are currently no items listed for rent. Be the first to share your wardrobe!
+                        </p>
+                        <Button onClick={() => setActiveTab('rent-out')}>List Your First Item</Button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                        {products.map((product) => (
+                          <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                            <div className="aspect-square relative overflow-hidden bg-gray-100">
+                              <img
+                                src={product.image_url || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D'}
+                                alt={product.title}
+                                className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
                               />
-                            </button>
-                          </div>
-                          <CardContent className="p-4">
-                            <h3 className="font-medium text-lg mb-1 line-clamp-1">{product.title}</h3>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-primary font-semibold">₹{product.price}/day</span>
-                                <span className="text-xs text-muted-foreground">Deposit: ₹{product.deposit}</span>
+                              <button 
+                                className={`absolute top-3 right-3 w-8 h-8 rounded-full 
+                                  ${favorites.includes(product.id) ? 'bg-red-50' : 'bg-white/80'} 
+                                  flex items-center justify-center hover:bg-white`}
+                                onClick={() => handleToggleFavorite(product.id)}
+                              >
+                                <Heart 
+                                  size={16} 
+                                  className={favorites.includes(product.id) ? 'text-red-500 fill-red-500' : 'text-muted-foreground'}
+                                />
+                              </button>
+                            </div>
+                            <CardContent className="p-4">
+                              <h3 className="font-medium text-lg mb-1 line-clamp-1">{product.title}</h3>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-primary font-semibold">₹{product.price}/day</span>
+                                  <span className="text-xs text-muted-foreground">Deposit: ₹{product.deposit}</span>
+                                </div>
+                                <span className="text-xs px-2 py-1 bg-rewear-gray rounded-full">{product.size}</span>
                               </div>
-                              <span className="text-xs px-2 py-1 bg-rewear-gray rounded-full">{product.size}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
-                              <span>{product.condition}</span>
-                              <span>Age: {product.age}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="w-full"
-                                onClick={() => handleAddToCart(product.id)}
-                                disabled={cartItems.includes(product.id)}
-                              >
-                                {cartItems.includes(product.id) ? 'Added to Cart' : 'Add to Cart'}
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                className="flex-shrink-0"
-                                onClick={() => handleMessageOwner(parseInt(product.id))}
-                              >
-                                <MessageSquare size={16} />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
+                                <span>{product.condition}</span>
+                                <span>Age: {product.age}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="w-full"
+                                  onClick={() => handleAddToCart(product.id)}
+                                  disabled={cartItems.includes(product.id)}
+                                >
+                                  {cartItems.includes(product.id) ? 'Added to Cart' : 'Add to Cart'}
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="flex-shrink-0"
+                                  onClick={() => handleMessageOwner(product.id)}
+                                >
+                                  <MessageSquare size={16} />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </AnimatedContainer>
@@ -654,7 +680,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
                 
                 <div className="max-w-3xl mx-auto">
                   <form onSubmit={handleRentOutSubmit} className="space-y-8">
-                    {/* Item Photos */}
+                    {/* Form fields */}
                     <div className="space-y-2">
                       <Label htmlFor="photos" className="text-lg font-medium">Item Photos</Label>
                       <p className="text-sm text-muted-foreground mb-4">
@@ -858,14 +884,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
       {/* Cart Modal */}
       {showCart && (
         <CartPage 
-          cartItems={cartItems.map(id => id.toString())} 
+          cartItems={cartItems} 
           onClose={() => setShowCart(false)} 
           onRemoveFromCart={handleRemoveFromCart}
           onCheckout={handleProceedToCheckout}
           onMessageOwner={(productId: string) => {
             const product = products.find(p => p.id === productId);
             if (product && onMessageOwner) {
-              onMessageOwner(parseInt(productId), product.title, "Owner");
+              onMessageOwner(productId, product.title, "Owner");
               setShowCart(false);
             }
           }}
@@ -887,7 +913,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onMessageOwner }) => {
         <ProfilePage 
           onClose={() => setShowProfile(false)} 
           onLogout={handleLogout}
-          cartItems={cartItems.map(id => id.toString())}
+          cartItems={cartItems}
           listedItems={listedItems}
         />
       )}

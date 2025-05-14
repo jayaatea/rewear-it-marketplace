@@ -14,3 +14,11 @@ export interface CartItem {
     condition: string | null;
   };
 }
+
+export interface RawCartItem {
+  id: string;
+  product_id: string;
+  rental_start_date: string | null;
+  rental_end_date: string | null;
+  products: any;
+}
