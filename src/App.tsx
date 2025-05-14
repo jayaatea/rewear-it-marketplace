@@ -16,7 +16,7 @@ import { AuthProvider } from "./hooks/use-auth";
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [chatProductId, setChatProductId] = useState<string | undefined>(undefined);
+  const [chatProductId, setChatProductId] = useState<number | undefined>(undefined);
   const [chatProductTitle, setChatProductTitle] = useState<string | undefined>(undefined);
   const [chatOwnerName, setChatOwnerName] = useState<string | undefined>(undefined);
 
@@ -33,7 +33,7 @@ const App = () => {
               <Route path="/dashboard" element={
                 <Dashboard 
                   onMessageOwner={(productId, title, owner) => {
-                    setChatProductId(typeof productId === 'number' ? productId.toString() : productId);
+                    setChatProductId(productId);
                     setChatProductTitle(title);
                     setChatOwnerName(owner);
                   }}

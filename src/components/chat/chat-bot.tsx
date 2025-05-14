@@ -4,12 +4,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageCircle, X } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { mockProducts } from '@/data/products';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
-import { Message } from '@/types/message';
+
+interface Message {
+  id: string;
+  text: string;
+  sender: 'user' | 'owner';
+  timestamp: Date;
+  product_id?: number;
+  sender_id: string;
+  receiver_id: string;
+}
 
 interface ChatBotProps {
-  productId?: string;
+  productId?: number;
   productTitle?: string;
   ownerName?: string;
 }
@@ -22,7 +32,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [allMessages, setAllMessages] = useState<Message[]>([]);
-  const [currentProductId, setCurrentProductId] = useState<string | undefined>(productId);
+  const [currentProductId, setCurrentProductId] = useState<number | undefined>(productId);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -79,7 +89,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
     (!currentProductId && !msg.product_id)
   );
 
-  const handleOpenChat = async (productId?: string, productName?: string, owner?: string) => {
+  const handleOpenChat = async (productId?: number, productName?: string, owner?: string) => {
     setCurrentProductId(productId);
     
     if (!user) {
@@ -97,49 +107,37 @@ const ChatBot: React.FC<ChatBotProps> = ({
       
       // If no existing messages, add a welcome message from the owner
       if (!hasExistingMessages) {
-        // Let's fetch the product to get the owner ID
+        const product = mockProducts.find(p => p.id === productId);
+        
+        // In a real app, we would fetch the owner ID from the product
+        // For now, we'll simulate with a fixed owner ID
+        const ownerId = "owner-id"; // This would come from the product owner
+        
+        const newOwnerMessage = {
+          text: `Hello! I'm ${owner || 'the owner'} of ${productName}. How can I help you?`,
+          sender: 'owner' as const,
+          product_id: productId,
+          sender_id: ownerId,
+          receiver_id: user.id
+        };
+        
         try {
-          const { data: productData, error: productError } = await supabase
-            .from('products')
-            .select('owner_id, title')
-            .eq('id', productId)
-            .single();
+          const { data, error } = await supabase
+            .from('messages')
+            .insert([newOwnerMessage])
+            .select();
             
-          if (productError) throw productError;
+          if (error) throw error;
           
-          if (productData) {
-            const ownerId = productData.owner_id;
-            
-            // Only create this welcome message if the user is not the owner
-            if (ownerId !== user.id) {
-              const newOwnerMessage = {
-                content: `Hello! I'm ${owner || 'the owner'} of ${productName}. How can I help you?`,
-                product_id: productId,
-                sender_id: ownerId,
-                receiver_id: user.id,
-                read: false
-              };
-              
-              const { data, error } = await supabase
-                .from('messages')
-                .insert([newOwnerMessage])
-                .select();
-                
-              if (error) throw error;
-              
-              if (data) {
-                const formattedMessage = {
-                  ...data[0],
-                  timestamp: new Date(data[0].created_at),
-                  text: data[0].content,
-                  sender: 'owner' as const
-                };
-                setAllMessages(prev => [...prev, formattedMessage]);
-              }
-            }
+          if (data) {
+            const formattedMessage = {
+              ...data[0],
+              timestamp: new Date(data[0].created_at)
+            };
+            setAllMessages(prev => [...prev, formattedMessage]);
           }
         } catch (error) {
-          console.error("Error setting up chat:", error);
+          console.error("Error saving welcome message:", error);
         }
       }
     } else if (!currentMessages.length) {
@@ -147,11 +145,10 @@ const ChatBot: React.FC<ChatBotProps> = ({
       const supportId = "rewear-support";
       
       const newOwnerMessage = {
-        content: `Hello! How can I help you today?`,
-        product_id: null,
+        text: `Hello! How can I help you today?`,
+        sender: 'owner' as const,
         sender_id: supportId,
-        receiver_id: user.id,
-        read: false
+        receiver_id: user.id
       };
       
       try {
@@ -165,9 +162,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
         if (data) {
           const formattedMessage = {
             ...data[0],
-            timestamp: new Date(data[0].created_at),
-            text: data[0].content,
-            sender: 'owner' as const
+            timestamp: new Date(data[0].created_at)
           };
           setAllMessages(prev => [...prev, formattedMessage]);
         }
@@ -187,33 +182,15 @@ const ChatBot: React.FC<ChatBotProps> = ({
     e.preventDefault();
     if (!message.trim() || !user) return;
 
-    // Get receiver ID (product owner or support)
-    let receiverId = "rewear-support";
-    
-    if (currentProductId) {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('owner_id')
-          .eq('id', currentProductId)
-          .single();
-          
-        if (error) throw error;
-        if (data) {
-          receiverId = data.owner_id;
-        }
-      } catch (error) {
-        console.error("Error getting receiver ID:", error);
-      }
-    }
-
     // Add user message to Supabase
     const newUserMessage = {
-      content: message,
-      product_id: currentProductId || null,
+      text: message,
+      sender: 'user' as const,
+      product_id: currentProductId,
       sender_id: user.id,
-      receiver_id: receiverId,
-      read: false
+      // In a real app, we would get the actual receiver ID based on the product owner
+      // For now, simulate with a fixed value
+      receiver_id: currentProductId ? "owner-id" : "rewear-support"
     };
     
     setMessage('');
@@ -229,9 +206,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
       if (data) {
         const formattedMessage = {
           ...data[0],
-          timestamp: new Date(data[0].created_at),
-          text: data[0].content,
-          sender: 'user' as const
+          timestamp: new Date(data[0].created_at)
         };
         setAllMessages(prev => [...prev, formattedMessage]);
       }
@@ -269,11 +244,12 @@ const ChatBot: React.FC<ChatBotProps> = ({
         }
         
         const ownerReplyMessage = {
-          content: ownerResponse,
-          product_id: currentProductId || null,
-          sender_id: receiverId,
-          receiver_id: user.id,
-          read: false
+          text: ownerResponse,
+          sender: 'owner' as const,
+          product_id: currentProductId,
+          // For a real app, we would use the actual owner ID
+          sender_id: currentProductId ? "owner-id" : "rewear-support",
+          receiver_id: user.id
         };
         
         try {
@@ -287,9 +263,7 @@ const ChatBot: React.FC<ChatBotProps> = ({
           if (data) {
             const formattedMessage = {
               ...data[0],
-              timestamp: new Date(data[0].created_at),
-              text: data[0].content,
-              sender: 'owner' as const
+              timestamp: new Date(data[0].created_at)
             };
             setAllMessages(prev => [...prev, formattedMessage]);
           }
@@ -350,22 +324,21 @@ const ChatBot: React.FC<ChatBotProps> = ({
               currentMessages.map((msg) => (
                 <div 
                   key={msg.id} 
-                  className={`max-w-[80%] ${msg.sender === 'owner' || msg.sender_id !== user?.id ? 'self-start' : 'self-end'}`}
+                  className={`max-w-[80%] ${msg.sender === 'owner' ? 'self-start' : 'self-end'}`}
                 >
                   <div 
                     className={`p-3 rounded-lg ${
-                      msg.sender === 'owner' || msg.sender_id !== user?.id
+                      msg.sender === 'owner' 
                         ? 'bg-rewear-gray text-foreground' 
                         : 'bg-primary text-primary-foreground'
                     }`}
                   >
-                    {msg.text || msg.content}
+                    {msg.text}
                   </div>
                   <div className={`text-xs text-muted-foreground mt-1 ${
-                    msg.sender === 'owner' || msg.sender_id !== user?.id ? 'text-left' : 'text-right'
+                    msg.sender === 'owner' ? 'text-left' : 'text-right'
                   }`}>
-                    {msg.timestamp ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
-                     new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
               ))

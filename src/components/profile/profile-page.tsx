@@ -1,123 +1,150 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { X, LogOut, Settings, ShoppingBag } from 'lucide-react';
-import UserProducts from '../products/user-products';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/use-auth';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
+import { X, UserCircle, Settings, ShoppingBag } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProfilePageProps {
   onClose: () => void;
   onLogout: () => void;
-  cartItems: string[];
-  listedItems: string[];
+  cartItems: number[];
+  listedItems: number[];
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ onClose, onLogout, cartItems, listedItems }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'settings'>('products');
-  const [userProducts, setUserProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (user) {
-      loadUserProducts();
-    }
-  }, [user]);
-
-  const loadUserProducts = async () => {
-    if (!user) return;
-    
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
-      
-      setUserProducts(data || []);
-    } catch (err) {
-      console.error('Error loading user products:', err);
-    } finally {
-      setLoading(false);
-    }
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = React.useState('account');
+  
+  const handleSaveChanges = () => {
+    toast({
+      title: "Profile updated",
+      description: "Your profile changes have been saved",
+    });
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-xl font-semibold">Your Account</h2>
+          <h2 className="text-xl font-semibold">Your Profile</h2>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X size={18} />
           </Button>
         </div>
         
-        <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
-          {/* Sidebar */}
-          <div className="sm:w-1/4 border-b sm:border-b-0 sm:border-r p-2">
-            <div className="flex sm:flex-col space-x-2 sm:space-x-0 sm:space-y-1">
-              <Button 
-                variant={activeTab === 'products' ? 'default' : 'ghost'}
-                className="justify-start"
-                onClick={() => setActiveTab('products')}
-              >
-                <ShoppingBag size={18} className="mr-2" />
-                Your Products
-              </Button>
-              <Button 
-                variant={activeTab === 'settings' ? 'default' : 'ghost'}
-                className="justify-start"
-                onClick={() => setActiveTab('settings')}
-              >
-                <Settings size={18} className="mr-2" />
+        <div className="flex-1 overflow-auto">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-3 mb-4">
+              <TabsTrigger value="account" className="flex items-center gap-2">
+                <UserCircle size={16} />
+                Account
+              </TabsTrigger>
+              <TabsTrigger value="orders" className="flex items-center gap-2">
+                <ShoppingBag size={16} />
+                Orders
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center gap-2">
+                <Settings size={16} />
                 Settings
-              </Button>
-              <Button 
-                variant="ghost"
-                className="justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-                onClick={onLogout}
-              >
-                <LogOut size={18} className="mr-2" />
-                Log Out
-              </Button>
-            </div>
-          </div>
-          
-          {/* Main content */}
-          <div className="flex-1 p-4 overflow-auto">
-            {activeTab === 'products' && (
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Your Listed Products ({userProducts.length})</h3>
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary mx-auto"></div>
-                    <p className="text-muted-foreground mt-2">Loading your products...</p>
-                  </div>
-                ) : (
-                  <UserProducts products={userProducts} onRefresh={loadUserProducts} />
-                )}
-              </div>
-            )}
+              </TabsTrigger>
+            </TabsList>
             
-            {activeTab === 'settings' && (
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Account Settings</h3>
-                <p className="text-muted-foreground">Account management features coming soon!</p>
-                
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium">Account Information</h4>
-                  <div className="mt-2 space-y-1">
-                    <p>Email: {user?.email}</p>
-                    <p>Member since: {user ? new Date(user.created_at).toLocaleDateString() : ''}</p>
+            <TabsContent value="account" className="p-4 space-y-4">
+              <div className="flex flex-col items-center mb-6">
+                <div className="w-24 h-24 rounded-full bg-rewear-gray/50 flex items-center justify-center text-2xl font-semibold mb-2">
+                  {/* User initial */}
+                  U
+                </div>
+                <h3 className="text-xl font-semibold">User Name</h3>
+                <p className="text-muted-foreground">user@example.com</p>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input id="name" defaultValue="User Name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" defaultValue="user@example.com" type="email" />
                   </div>
                 </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input id="phone" placeholder="Enter your phone number" />
+                </div>
+                
+                <Button onClick={handleSaveChanges}>Save Changes</Button>
               </div>
-            )}
-          </div>
+            </TabsContent>
+            
+            <TabsContent value="orders" className="p-4">
+              <div className="space-y-4">
+                <h3 className="font-semibold">Your Active Rentals</h3>
+                {cartItems.length === 0 ? (
+                  <p className="text-muted-foreground">You have no active rentals</p>
+                ) : (
+                  <p className="text-muted-foreground">You have {cartItems.length} items in your cart</p>
+                )}
+                
+                <h3 className="font-semibold mt-6">Your Listed Items</h3>
+                {listedItems.length === 0 ? (
+                  <p className="text-muted-foreground">You haven't listed any items for rent yet</p>
+                ) : (
+                  <p className="text-muted-foreground">You've listed {listedItems.length} items for rent</p>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="settings" className="p-4 space-y-6">
+              <Card>
+                <CardContent className="p-4">
+                  <h4 className="font-medium mb-2">Change Password</h4>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="current-password">Current Password</Label>
+                      <Input id="current-password" type="password" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="new-password">New Password</Label>
+                      <Input id="new-password" type="password" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="confirm-password">Confirm New Password</Label>
+                      <Input id="confirm-password" type="password" />
+                    </div>
+                    <Button variant="outline" className="w-full mt-2">Update Password</Button>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4">
+                  <h4 className="font-medium mb-2">Notification Settings</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="email-notifications">Email notifications</Label>
+                      <input type="checkbox" id="email-notifications" defaultChecked className="toggle" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="marketing-emails">Marketing emails</Label>
+                      <input type="checkbox" id="marketing-emails" className="toggle" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Button variant="destructive" onClick={onLogout} className="w-full">
+                Log Out
+              </Button>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

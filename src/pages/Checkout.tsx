@@ -1,100 +1,179 @@
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { ChevronLeft, Calendar, CreditCard } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarIcon, ShoppingCart } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { AnimatedContainer } from '@/components/animated-container';
 import { useAuth } from '@/hooks/use-auth';
 import { getUserCart } from '@/lib/product-service';
-import { processRazorpayPayment, createRazorpayOrder, saveOrder } from '@/lib/razorpay-service';
-import { CartItem } from '@/types/cart';
+import { createRazorpayOrder, processRazorpayPayment } from '@/lib/razorpay-service';
+import { toast } from 'sonner';
+import RewearLogo from '@/components/rewear-logo';
+
+interface CartItem {
+  id: string;
+  product_id: string;
+  rental_start_date: string | null;
+  rental_end_date: string | null;
+  products: {
+    id: string;
+    title: string;
+    price: number;
+    deposit: number;
+    image_url: string | null;
+    size: string | null;
+    condition: string | null;
+  };
+}
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [loadingCart, setLoadingCart] = useState(true);
+  const { user } = useAuth();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingPayment, setProcessingPayment] = useState(false);
   
-  const subtotal = cartItems.reduce((total, item) => total + item.products.price, 0);
-  const deliveryFee = 150;
-  const serviceFee = Math.round(subtotal * 0.05);
-  const total = subtotal + deliveryFee + serviceFee;
-
-  // Fetch cart items
+  const [shippingDetails, setShippingDetails] = useState({
+    fullName: '',
+    address: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    phone: ''
+  });
+  
   useEffect(() => {
-    const fetchCartItems = async () => {
-      if (loading) return;
-      
+    const fetchCart = async () => {
       if (!user) {
-        toast.error('Please log in to view your cart');
+        toast.error('Please login to proceed');
         navigate('/');
         return;
       }
       
       try {
-        setLoadingCart(true);
-        const userCart = await getUserCart(user.id);
-        setCartItems(userCart as CartItem[]);
+        const cartItems = await getUserCart(user.id);
+        setCart(cartItems);
       } catch (error) {
         console.error('Error fetching cart:', error);
-        toast.error('Failed to load cart items');
       } finally {
-        setLoadingCart(false);
+        setLoading(false);
       }
     };
     
-    fetchCartItems();
-  }, [user, loading, navigate]);
-
+    fetchCart();
+  }, [user, navigate]);
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setShippingDetails(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleDateSelect = (itemId: string, type: 'start' | 'end', date: Date) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === itemId) {
+        return {
+          ...item,
+          [type === 'start' ? 'rental_start_date' : 'rental_end_date']: date.toISOString()
+        };
+      }
+      return item;
+    }));
+  };
+  
+  const calculateDays = (startDate: string | null, endDate: string | null): number => {
+    if (!startDate || !endDate) return 1;
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays || 1;
+  };
+  
+  const calculateSubtotal = (): number => {
+    return cart.reduce((total, item) => {
+      const days = calculateDays(item.rental_start_date, item.rental_end_date);
+      return total + (item.products.price * days);
+    }, 0);
+  };
+  
+  const calculateDeposit = (): number => {
+    return cart.reduce((total, item) => {
+      return total + (item.products.deposit || 0);
+    }, 0);
+  };
+  
+  const calculateTotal = (): number => {
+    return calculateSubtotal() + calculateDeposit();
+  };
+  
   const handleCheckout = async () => {
-    if (!user) {
-      toast.error('Please log in to checkout');
+    // Validate inputs
+    const { fullName, address, city, state, postalCode, phone } = shippingDetails;
+    if (!fullName || !address || !city || !state || !postalCode || !phone) {
+      toast.error('Please fill in all shipping details');
       return;
     }
     
-    if (cartItems.length === 0) {
-      toast.error('Your cart is empty');
-      return;
+    // Validate dates for all items
+    for (const item of cart) {
+      if (!item.rental_start_date || !item.rental_end_date) {
+        toast.error('Please select rental dates for all items');
+        return;
+      }
     }
     
     try {
-      // Create order
-      const orderResult = await createRazorpayOrder(total, cartItems);
-      if (!orderResult?.orderId) {
-        throw new Error('Failed to create order');
+      setProcessingPayment(true);
+      
+      // Create Razorpay order
+      const orderResponse = await createRazorpayOrder(
+        calculateTotal(), 
+        cart
+      );
+      
+      if (!orderResponse) {
+        toast.error('Failed to create order');
+        return;
       }
       
       // Process payment
-      const userDetails = {
-        name: user.user_metadata?.full_name || user.email || 'User',
-        email: user.email || '',
-      };
-      
       const paymentSuccess = await processRazorpayPayment(
-        orderResult.orderId,
-        total,
+        orderResponse.orderId,
+        calculateTotal(),
         'INR',
-        userDetails
+        {
+          name: shippingDetails.fullName,
+          email: user?.email || '',
+          contact: shippingDetails.phone
+        }
       );
       
       if (paymentSuccess) {
-        // Save order to database
-        await saveOrder(cartItems, orderResult.orderId, total);
-        
-        toast.success('Payment successful! Your items are on the way');
-        navigate('/dashboard');
-      } else {
-        toast.error('Payment was not completed');
+        // Navigate to success page or show success message
+        navigate('/dashboard', { state: { paymentSuccess: true } });
       }
     } catch (error) {
       console.error('Checkout error:', error);
-      toast.error('There was a problem processing your payment');
+      toast.error('Payment failed. Please try again.');
+    } finally {
+      setProcessingPayment(false);
     }
   };
-
-  if (loading || loadingCart) {
+  
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
@@ -104,144 +183,246 @@ const Checkout = () => {
       </div>
     );
   }
-
+  
+  if (!cart.length) {
+    return (
+      <AnimatedContainer>
+        <div className="container px-4 py-10 text-center">
+          <h1 className="text-2xl font-bold mb-4">Your Cart is Empty</h1>
+          <p className="mb-6">Looks like you haven't added any items to your cart yet.</p>
+          <Button onClick={() => navigate('/dashboard')}>Browse Items</Button>
+        </div>
+      </AnimatedContainer>
+    );
+  }
+  
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container max-w-6xl px-4">
-        <Button 
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="mb-6 flex items-center text-gray-600"
-        >
-          <ChevronLeft size={16} className="mr-1" />
-          Back to shopping
-        </Button>
+    <AnimatedContainer>
+      <header className="border-b py-4">
+        <div className="container px-4">
+          <div className="flex items-center justify-between">
+            <RewearLogo size="sm" showImage={true} />
+            <Button variant="outline" onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      </header>
+      
+      <div className="container px-4 py-8">
+        <h1 className="text-2xl font-bold mb-6">Checkout</h1>
         
-        <h1 className="text-3xl font-bold mb-8">Checkout</h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Cart Summary */}
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-6">
+            {/* Shipping Information */}
             <Card>
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
-                
-                {cartItems.length === 0 ? (
-                  <p className="text-gray-500 py-4">Your cart is empty</p>
-                ) : (
-                  <div className="space-y-4">
-                    {cartItems.map((item) => (
-                      <div key={item.id} className="flex gap-4">
-                        <div className="w-20 h-20 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                          <img 
-                            src={item.products.image_url || 'https://images.unsplash.com/photo-1582533561751-ef6f6ab93a2e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OHx8c3VtbWVyJTIwZHJlc3N8ZW58MHx8MHx8fDA%3D'} 
-                            alt={item.products.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        
-                        <div className="flex-1">
-                          <h3 className="font-medium">{item.products.title}</h3>
-                          <p className="text-sm text-gray-500">Size: {item.products.size}</p>
-                          <p className="text-sm text-gray-500">Condition: {item.products.condition}</p>
-                          
-                          <div className="flex items-center mt-1 text-sm">
-                            <Calendar size={14} className="mr-1 text-gray-400" />
-                            <span>
-                              {item.rental_start_date ? new Date(item.rental_start_date).toLocaleDateString() : 'Not specified'} 
-                              {' - '}
-                              {item.rental_end_date ? new Date(item.rental_end_date).toLocaleDateString() : 'Not specified'}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <p className="font-medium">₹{item.products.price}/day</p>
-                          <p className="text-xs text-gray-500 mt-1">+ ₹{item.products.deposit} deposit</p>
-                        </div>
-                      </div>
-                    ))}
+              <CardContent className="pt-6">
+                <h2 className="text-xl font-semibold mb-4">Shipping Information</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input 
+                      id="fullName" 
+                      name="fullName" 
+                      value={shippingDetails.fullName}
+                      onChange={handleInputChange}
+                      className="mt-1"
+                    />
                   </div>
-                )}
+                  <div>
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input 
+                      id="phone" 
+                      name="phone" 
+                      value={shippingDetails.phone}
+                      onChange={handleInputChange}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="address">Address</Label>
+                    <Input 
+                      id="address" 
+                      name="address" 
+                      value={shippingDetails.address}
+                      onChange={handleInputChange}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="city">City</Label>
+                    <Input 
+                      id="city" 
+                      name="city" 
+                      value={shippingDetails.city}
+                      onChange={handleInputChange}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="state">State</Label>
+                    <Input 
+                      id="state" 
+                      name="state" 
+                      value={shippingDetails.state}
+                      onChange={handleInputChange}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="postalCode">Postal Code</Label>
+                    <Input 
+                      id="postalCode" 
+                      name="postalCode" 
+                      value={shippingDetails.postalCode}
+                      onChange={handleInputChange}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
             
+            {/* Order Items */}
             <Card>
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Shipping Information</h2>
-                
-                <div className="space-y-1">
-                  <p>
-                    <span className="font-medium">Name:</span> {user?.user_metadata?.full_name || user?.email}
-                  </p>
-                  <p>
-                    <span className="font-medium">Email:</span> {user?.email}
-                  </p>
-                  <p>
-                    <span className="font-medium">Address:</span> 123 Main St, Mumbai, MH 400001
-                  </p>
-                  
-                  <p className="text-sm text-gray-500 mt-2">
-                    Currently using saved address. We'll contact you for confirmation.
-                  </p>
+              <CardContent className="pt-6">
+                <h2 className="text-xl font-semibold mb-4">Rental Items</h2>
+                <div className="space-y-4">
+                  {cart.map((item) => (
+                    <div key={item.id} className="flex flex-col md:flex-row gap-4 pb-4 border-b">
+                      <div className="w-full md:w-1/4">
+                        <div className="aspect-square bg-gray-100 rounded-md overflow-hidden">
+                          <img 
+                            src={item.products.image_url || 'https://via.placeholder.com/150'} 
+                            alt={item.products.title}
+                            className="object-cover w-full h-full"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium">{item.products.title}</h3>
+                        <p className="text-muted-foreground text-sm mb-1">
+                          Size: {item.products.size || 'N/A'} | Condition: {item.products.condition || 'N/A'}
+                        </p>
+                        <p className="text-primary font-semibold mb-2">₹{item.products.price}/day</p>
+                        <p className="text-sm text-muted-foreground mb-3">Security Deposit: ₹{item.products.deposit}</p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm mb-1 block">Start Date</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start text-left font-normal"
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {item.rental_start_date ? (
+                                    format(new Date(item.rental_start_date), "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                  mode="single"
+                                  selected={item.rental_start_date ? new Date(item.rental_start_date) : undefined}
+                                  onSelect={(date) => date && handleDateSelect(item.id, 'start', date)}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          <div>
+                            <Label className="text-sm mb-1 block">End Date</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start text-left font-normal"
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {item.rental_end_date ? (
+                                    format(new Date(item.rental_end_date), "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                  mode="single"
+                                  selected={item.rental_end_date ? new Date(item.rental_end_date) : undefined}
+                                  onSelect={(date) => date && handleDateSelect(item.id, 'end', date)}
+                                  fromDate={item.rental_start_date ? new Date(item.rental_start_date) : undefined}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </div>
+                        
+                        {item.rental_start_date && item.rental_end_date && (
+                          <div className="mt-2 text-sm">
+                            Rental Duration: <span className="font-semibold">
+                              {calculateDays(item.rental_start_date, item.rental_end_date)} days
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </div>
           
-          {/* Payment Summary */}
+          {/* Order Summary */}
           <div>
             <Card className="sticky top-8">
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Payment Summary</h2>
-                
-                <div className="space-y-3">
+              <CardContent className="pt-6">
+                <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
+                <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal</span>
-                    <span>₹{subtotal.toFixed(2)}</span>
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>₹{calculateSubtotal()}</span>
                   </div>
-                  
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Delivery Fee</span>
-                    <span>₹{deliveryFee.toFixed(2)}</span>
+                    <span className="text-muted-foreground">Security Deposit</span>
+                    <span>₹{calculateDeposit()}</span>
                   </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Service Fee</span>
-                    <span>₹{serviceFee.toFixed(2)}</span>
-                  </div>
-                  
-                  <Separator className="my-2" />
-                  
-                  <div className="flex justify-between font-semibold">
+                  <Separator className="my-4" />
+                  <div className="flex justify-between text-lg font-semibold">
                     <span>Total</span>
-                    <span>₹{total.toFixed(2)}</span>
+                    <span>₹{calculateTotal()}</span>
                   </div>
-                  
-                  <div className="text-xs text-gray-500">
-                    Rental security deposit (₹{cartItems.reduce((total, item) => total + item.products.deposit, 0)}) 
-                    will be refunded after successful return
-                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Security deposit will be refunded after the item is returned in good condition
+                  </p>
                 </div>
-                
-                <Button 
-                  className="w-full mt-6 flex items-center justify-center gap-2"
-                  onClick={handleCheckout}
-                  disabled={cartItems.length === 0}
-                >
-                  <CreditCard size={16} />
-                  Pay Now
-                </Button>
-                
-                <p className="text-xs text-center mt-4 text-gray-500">
-                  By proceeding, you agree to our Terms of Service and confirm that you have read our Privacy Policy
-                </p>
               </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full" 
+                  onClick={handleCheckout}
+                  disabled={processingPayment}
+                >
+                  {processingPayment ? (
+                    <>Processing...</>
+                  ) : (
+                    <>
+                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      Pay ₹{calculateTotal()}
+                    </>
+                  )}
+                </Button>
+              </CardFooter>
             </Card>
           </div>
         </div>
       </div>
-    </div>
+    </AnimatedContainer>
   );
 };
 

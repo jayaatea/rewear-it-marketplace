@@ -1,5 +1,5 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // Define the window interface to include Razorpay
@@ -41,19 +41,14 @@ export const createRazorpayOrder = async (
       return null;
     }
     
-    // Call our Supabase Edge Function to create an order
-    const { data, error } = await supabase.functions.invoke('generate-razorpay-order', {
-      body: {
-        amount,
-        currency,
-        user_id: userData.user.id,
-        cart_items: cart
-      }
-    });
+    // In a production environment, you would create an order on your server
+    // This is just a mock implementation
+    // In real world, create a Supabase Edge Function to handle this securely
     
-    if (error) throw error;
+    // Mock order ID - in production this would come from your backend
+    const mockOrderId = 'order_' + Math.random().toString(36).substring(2, 15);
     
-    return { orderId: data.orderId };
+    return { orderId: mockOrderId };
   } catch (error: any) {
     console.error('Error creating order:', error);
     toast.error('Failed to create order');
