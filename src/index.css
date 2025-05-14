@@ -84,8 +84,6 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -93,22 +91,4 @@
   .rewear-link {
     @apply relative inline-block after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:origin-bottom-right after:scale-x-0 after:bg-primary after:transition-transform after:duration-300 hover:after:origin-bottom-left hover:after:scale-x-100;
   }
-  
-  /* Fix for blurry images */
-  img {
-    image-rendering: -webkit-optimize-contrast;
-    backface-visibility: hidden;
-    transform: translateZ(0);
-  }
-  
-  /* Improve text rendering */
-  h1, h2, h3, h4, h5, h6 {
-    text-rendering: optimizeLegibility;
-  }
 }
-
-/* Improve scroll behavior */
-html {
-  scroll-behavior: smooth;
-}
-

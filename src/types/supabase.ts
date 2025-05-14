@@ -32,7 +32,6 @@ export interface Database {
           username?: string
           full_name?: string | null
           avatar_url?: string | null
-          created_at?: string
           updated_at?: string
         }
       }
@@ -76,43 +75,84 @@ export interface Database {
           size?: string | null
           condition?: string | null
           age?: string | null
-          created_at?: string
           updated_at?: string
         }
       }
-      orders: {
+      favorites: {
         Row: {
           id: string
           user_id: string
-          amount: number
-          currency: string
-          status: string
-          payment_id: string | null
-          razorpay_order_id: string | null
+          product_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          product_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          product_id?: string
+          created_at?: string
+        }
+      }
+      cart_items: {
+        Row: {
+          id: string
+          user_id: string
+          product_id: string
+          rental_start_date: string | null
+          rental_end_date: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
-          amount: number
-          currency?: string
-          status?: string
-          payment_id?: string | null
-          razorpay_order_id?: string | null
+          product_id: string
+          rental_start_date?: string | null
+          rental_end_date?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          amount?: number
-          currency?: string
-          status?: string
-          payment_id?: string | null
-          razorpay_order_id?: string | null
-          created_at?: string
+          product_id?: string
+          rental_start_date?: string | null
+          rental_end_date?: string | null
           updated_at?: string
+        }
+      }
+      messages: {
+        Row: {
+          id: string
+          sender_id: string
+          receiver_id: string
+          product_id: string | null
+          content: string
+          read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          sender_id: string
+          receiver_id: string
+          product_id?: string | null
+          content: string
+          read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          sender_id?: string
+          receiver_id?: string
+          product_id?: string | null
+          content?: string
+          read?: boolean
+          created_at?: string
         }
       }
     }

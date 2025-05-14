@@ -4,10 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { AnimatedContainer } from '@/components/animated-container';
-import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff } from 'lucide-react';
 
 type FormType = 'login' | 'signup';
 
@@ -17,21 +15,19 @@ interface AuthFormProps {
 
 const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
   const { toast } = useToast();
-  const { signIn, signUp } = useAuth();
   const [formType, setFormType] = useState<FormType>('login');
+  const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
+  const [otp, setOtp] = useState('');
   const [method, setMethod] = useState<'email' | 'phone'>('email');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmitStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
-    if (!email) {
+    if (method === 'email' && !email) {
       toast({
         title: "Email required",
         description: "Please enter your email address",
@@ -40,49 +36,16 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       return;
     }
     
-    if (!password) {
+    if (method === 'phone' && !phone) {
       toast({
-        title: "Password required",
-        description: "Please enter your password",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      await signIn(email, password);
-      onSuccess();
-    } catch (error) {
-      console.error("Authentication error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validation
-    if (!email) {
-      toast({
-        title: "Email required",
-        description: "Please enter your email address",
+        title: "Phone number required",
+        description: "Please enter your phone number",
         variant: "destructive"
       });
       return;
     }
     
-    if (!password) {
-      toast({
-        title: "Password required",
-        description: "Please enter a password",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!name) {
+    if (formType === 'signup' && !name) {
       toast({
         title: "Name required",
         description: "Please enter your name",
@@ -90,16 +53,40 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       });
       return;
     }
-
-    try {
-      setIsLoading(true);
-      await signUp(email, password, name, phone);
-      setFormType('login');
-    } catch (error) {
-      console.error("Authentication error:", error);
-    } finally {
-      setIsLoading(false);
+    
+    // Mock sending OTP
+    toast({
+      title: `OTP Sent`,
+      description: `A verification code has been sent to your ${method}`,
+    });
+    
+    setStep(2);
+  };
+  
+  const handleVerifyOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!otp || otp.length < 4) {
+      toast({
+        title: "Invalid OTP",
+        description: "Please enter a valid verification code",
+        variant: "destructive"
+      });
+      return;
     }
+    
+    // Mock successful verification
+    toast({
+      title: "Success!",
+      description: formType === 'login' ? "Login successful" : "Account created successfully",
+    });
+    
+    onSuccess();
+  };
+  
+  const handleBack = () => {
+    setStep(1);
+    setOtp('');
   };
   
   return (
@@ -108,7 +95,6 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
         defaultValue="login" 
         className="w-full" 
         onValueChange={(value) => setFormType(value as FormType)}
-        value={formType}
       >
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="login">Login</TabsTrigger>
@@ -116,30 +102,29 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
         </TabsList>
         
         <TabsContent value="login" className="space-y-4">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex gap-4 mb-4">
-                <Button
-                  type="button"
-                  variant={method === 'email' ? 'default' : 'outline'}
-                  onClick={() => setMethod('email')}
-                  className="flex-1"
-                >
-                  Email
-                </Button>
-                <Button
-                  type="button"
-                  variant={method === 'phone' ? 'default' : 'outline'}
-                  onClick={() => setMethod('phone')}
-                  className="flex-1"
-                  disabled
-                >
-                  Phone
-                </Button>
-              </div>
-              
-              {method === 'email' ? (
-                <>
+          {step === 1 ? (
+            <form onSubmit={handleSubmitStep1} className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex gap-4 mb-4">
+                  <Button
+                    type="button"
+                    variant={method === 'email' ? 'default' : 'outline'}
+                    onClick={() => setMethod('email')}
+                    className="flex-1"
+                  >
+                    Email
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={method === 'phone' ? 'default' : 'outline'}
+                    onClick={() => setMethod('phone')}
+                    className="flex-1"
+                  >
+                    Phone
+                  </Button>
+                </div>
+                
+                {method === 'email' ? (
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -150,83 +135,84 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
+                ) : (
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-0 top-0 h-full"
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </Button>
-                    </div>
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter your phone number"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
                   </div>
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="Enter your phone number"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-            <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? "Logging in..." : "Sign In"}
-            </Button>
-          </form>
+                )}
+              </div>
+              <Button className="w-full" type="submit">Continue</Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">Verification Code</Label>
+                <Input
+                  id="otp"
+                  type="text"
+                  placeholder="Enter the OTP sent to you"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  maxLength={6}
+                />
+                <p className="text-sm text-muted-foreground">
+                  We've sent a verification code to {method === 'email' ? email : phone}
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <Button variant="outline" type="button" onClick={handleBack} className="flex-1">
+                  Back
+                </Button>
+                <Button className="flex-1" type="submit">
+                  Verify & Login
+                </Button>
+              </div>
+            </form>
+          )}
         </TabsContent>
         
         <TabsContent value="signup" className="space-y-4">
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Enter your full name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex gap-4 mb-4">
-                <Button
-                  type="button"
-                  variant={method === 'email' ? 'default' : 'outline'}
-                  onClick={() => setMethod('email')}
-                  className="flex-1"
-                >
-                  Email
-                </Button>
-                <Button
-                  type="button"
-                  variant={method === 'phone' ? 'default' : 'outline'}
-                  onClick={() => setMethod('phone')}
-                  className="flex-1"
-                  disabled
-                >
-                  Phone
-                </Button>
-              </div>
-              
-              {method === 'email' ? (
-                <>
+          {step === 1 ? (
+            <form onSubmit={handleSubmitStep1} className="space-y-4">
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex gap-4 mb-4">
+                  <Button
+                    type="button"
+                    variant={method === 'email' ? 'default' : 'outline'}
+                    onClick={() => setMethod('email')}
+                    className="flex-1"
+                  >
+                    Email
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={method === 'phone' ? 'default' : 'outline'}
+                    onClick={() => setMethod('phone')}
+                    className="flex-1"
+                  >
+                    Phone
+                  </Button>
+                </div>
+                
+                {method === 'email' ? (
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input
@@ -237,45 +223,47 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
+                ) : (
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="signup-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Create a password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-0 top-0 h-full"
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </Button>
-                    </div>
+                    <Label htmlFor="signup-phone">Phone Number</Label>
+                    <Input
+                      id="signup-phone"
+                      type="tel"
+                      placeholder="Enter your phone number"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
                   </div>
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="signup-phone">Phone Number</Label>
-                  <Input
-                    id="signup-phone"
-                    type="tel"
-                    placeholder="Enter your phone number"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-            <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? "Creating Account..." : "Create Account"}
-            </Button>
-          </form>
+                )}
+              </div>
+              <Button className="w-full" type="submit">Continue</Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-otp">Verification Code</Label>
+                <Input
+                  id="signup-otp"
+                  type="text"
+                  placeholder="Enter the OTP sent to you"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  maxLength={6}
+                />
+                <p className="text-sm text-muted-foreground">
+                  We've sent a verification code to {method === 'email' ? email : phone}
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <Button variant="outline" type="button" onClick={handleBack} className="flex-1">
+                  Back
+                </Button>
+                <Button className="flex-1" type="submit">
+                  Create Account
+                </Button>
+              </div>
+            </form>
+          )}
         </TabsContent>
       </Tabs>
     </AnimatedContainer>
