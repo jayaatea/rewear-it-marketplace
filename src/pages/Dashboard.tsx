@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkout } from '@/components/cart/checkout';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { SidebarFilters, FilterOptions } from '@/components/dashboard/sidebar-filters';
-import { allProducts } from '@/data/products';
+import { mockProducts } from '@/data/products';
 
 interface DashboardProps {
   onMessageOwner?: (productId: number, title: string, owner: string) => void;
@@ -15,21 +15,24 @@ interface DashboardProps {
 interface Product {
   id: number;
   title: string;
-  description: string;
+  description?: string;
   price: number;
-  imageUrl: string;
+  imageUrl?: string;
+  image?: string;
   size?: string;
   condition?: string;
-  owner: string;
+  owner?: string;
+  deposit?: number;
+  age?: string;
 }
 
 const Dashboard = ({ onMessageOwner }: DashboardProps) => {
-  const [products, setProducts] = useState<Product[]>(allProducts);
+  const [products, setProducts] = useState<Product[]>(mockProducts);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const handleFilterChange = (filters: FilterOptions) => {
-    let filteredProducts = [...allProducts];
+    let filteredProducts = [...mockProducts];
 
     // Apply category filter
     if (filters.category !== 'All Items') {
@@ -81,10 +84,14 @@ const Dashboard = ({ onMessageOwner }: DashboardProps) => {
             <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
               <h2 className="text-xl font-bold mb-4">Complete Your Purchase</h2>
               <div className="flex items-center gap-4 mb-6">
-                <img src={selectedProduct.imageUrl} alt={selectedProduct.title} className="w-20 h-20 object-cover rounded-md" />
+                <img 
+                  src={selectedProduct.image || selectedProduct.imageUrl} 
+                  alt={selectedProduct.title} 
+                  className="w-20 h-20 object-cover rounded-md" 
+                />
                 <div>
                   <h3 className="font-semibold">{selectedProduct.title}</h3>
-                  <p className="text-gray-500">${selectedProduct.price.toFixed(2)}</p>
+                  <p className="text-gray-500">₹{selectedProduct.price.toFixed(2)}</p>
                 </div>
               </div>
               
@@ -113,19 +120,34 @@ const Dashboard = ({ onMessageOwner }: DashboardProps) => {
                 {products.map((product) => (
                   <Card key={product.id} className="overflow-hidden">
                     <CardHeader className="p-0">
-                      <img src={product.imageUrl} alt={product.title} className="w-full h-60 object-cover" />
+                      <img 
+                        src={product.image || product.imageUrl} 
+                        alt={product.title} 
+                        className="w-full h-60 object-cover" 
+                      />
                     </CardHeader>
                     <CardContent className="p-4">
                       <CardTitle className="text-lg">{product.title}</CardTitle>
-                      <p className="text-gray-500 text-sm mt-1">{product.description}</p>
+                      <p className="text-gray-500 text-sm mt-1">{product.description || `Rent this ${product.title} from our collection.`}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {product.size && <Badge variant="outline">{product.size}</Badge>}
                         {product.condition && <Badge variant="secondary">{product.condition}</Badge>}
+                        {product.age && <Badge variant="outline">{product.age}</Badge>}
                       </div>
-                      <p className="mt-4 font-bold">₹{product.price.toFixed(2)}</p>
+                      <div className="mt-4">
+                        <p className="font-bold">Rental Price: ₹{product.price.toFixed(2)}</p>
+                        {product.deposit && <p className="text-sm text-gray-600">Deposit: ₹{product.deposit.toFixed(2)}</p>}
+                      </div>
                     </CardContent>
                     <CardFooter className="flex justify-between p-4 pt-0">
-                      <Button variant="outline" onClick={() => onMessageOwner && onMessageOwner(product.id, product.title, product.owner)}>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => onMessageOwner && onMessageOwner(
+                          product.id, 
+                          product.title, 
+                          product.owner || "ReWear Staff"
+                        )}
+                      >
                         Message Owner
                       </Button>
                       <Button onClick={() => openCheckout(product)}>Rent Now</Button>
