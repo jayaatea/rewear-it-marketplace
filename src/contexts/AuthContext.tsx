@@ -7,9 +7,8 @@ import { useToast } from '@/hooks/use-toast';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  signIn: (email: string) => Promise<void>;
-  signUp: (email: string, name: string, phone?: string) => Promise<void>;
-  verifyOtp: (email: string, token: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, phone?: string) => Promise<void>;
   signOut: () => Promise<void>;
   loading: boolean;
 }
@@ -42,21 +41,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string) => {
+  // Updated direct email login without OTP
+  const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
-        options: {
-          emailRedirectTo: window.location.origin,
-        }
+        password,
       });
       
       if (error) throw error;
       
       toast({
-        title: "Check your email",
-        description: "We've sent a login link to your email address."
+        title: "Login successful",
+        description: "You have been successfully logged in."
       });
       
     } catch (error: any) {
@@ -70,25 +68,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, name: string, phone?: string) => {
+  // Updated sign up with password
+  const signUp = async (email: string, password: string, name: string, phone?: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.signUp({
         email,
+        password,
         options: {
           data: {
             full_name: name,
             phone: phone,
           },
-          emailRedirectTo: window.location.origin,
         }
       });
       
       if (error) throw error;
       
       toast({
-        title: "Check your email",
-        description: "We've sent a verification link to your email address."
+        title: "Registration successful",
+        description: "Your account has been created. You can now log in."
       });
       
     } catch (error: any) {
@@ -97,34 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: error.message || "Failed to sign up",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyOtp = async (email: string, token: string) => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: 'email'
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: "You have successfully logged in."
-      });
-      
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to verify OTP",
-        variant: "destructive",
-      });
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -147,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, signIn, signUp, verifyOtp, signOut, loading }}>
+    <AuthContext.Provider value={{ user, session, signIn, signUp, signOut, loading }}>
       {children}
     </AuthContext.Provider>
   );
