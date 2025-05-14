@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { AnimatedContainer } from '@/components/animated-container';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { useAuth } from '@/contexts/AuthContext';
 
 type FormType = 'login' | 'signup';
 
@@ -15,6 +17,7 @@ interface AuthFormProps {
 
 const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
   const { toast } = useToast();
+  const { signIn, signUp, verifyOtp } = useAuth();
   const [formType, setFormType] = useState<FormType>('login');
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState('');
@@ -22,8 +25,9 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
   const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
   const [method, setMethod] = useState<'email' | 'phone'>('email');
+  const [isLoading, setIsLoading] = useState(false);
   
-  const handleSubmitStep1 = (e: React.FormEvent) => {
+  const handleSubmitStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
@@ -53,35 +57,45 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       });
       return;
     }
-    
-    // Mock sending OTP
-    toast({
-      title: `OTP Sent`,
-      description: `A verification code has been sent to your ${method}`,
-    });
-    
-    setStep(2);
+
+    try {
+      setIsLoading(true);
+      
+      if (formType === 'login') {
+        await signIn(email);
+      } else {
+        await signUp(email, name, phone);
+      }
+      
+      setStep(2);
+    } catch (error) {
+      console.error("Authentication error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!otp || otp.length < 4) {
+    if (!otp || otp.length !== 6) {
       toast({
         title: "Invalid OTP",
-        description: "Please enter a valid verification code",
+        description: "Please enter a valid 6-digit verification code",
         variant: "destructive"
       });
       return;
     }
     
-    // Mock successful verification
-    toast({
-      title: "Success!",
-      description: formType === 'login' ? "Login successful" : "Account created successfully",
-    });
-    
-    onSuccess();
+    try {
+      setIsLoading(true);
+      await verifyOtp(email, otp);
+      onSuccess();
+    } catch (error) {
+      console.error("OTP verification error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const handleBack = () => {
@@ -119,6 +133,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                     variant={method === 'phone' ? 'default' : 'outline'}
                     onClick={() => setMethod('phone')}
                     className="flex-1"
+                    disabled
                   >
                     Phone
                   </Button>
@@ -148,30 +163,36 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                   </div>
                 )}
               </div>
-              <Button className="w-full" type="submit">Continue</Button>
+              <Button className="w-full" type="submit" disabled={isLoading}>
+                {isLoading ? "Sending verification..." : "Continue"}
+              </Button>
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="otp">Verification Code</Label>
-                <Input
-                  id="otp"
-                  type="text"
-                  placeholder="Enter the OTP sent to you"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                />
-                <p className="text-sm text-muted-foreground">
-                  We've sent a verification code to {method === 'email' ? email : phone}
+                <div className="flex justify-center my-4">
+                  <InputOTP value={otp} onChange={setOtp} maxLength={6}>
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  We've sent a verification code to {email}
                 </p>
               </div>
               <div className="flex gap-4">
-                <Button variant="outline" type="button" onClick={handleBack} className="flex-1">
+                <Button variant="outline" type="button" onClick={handleBack} className="flex-1" disabled={isLoading}>
                   Back
                 </Button>
-                <Button className="flex-1" type="submit">
-                  Verify & Login
+                <Button className="flex-1" type="submit" disabled={isLoading || otp.length !== 6}>
+                  {isLoading ? "Verifying..." : "Verify & Login"}
                 </Button>
               </div>
             </form>
@@ -207,6 +228,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                     variant={method === 'phone' ? 'default' : 'outline'}
                     onClick={() => setMethod('phone')}
                     className="flex-1"
+                    disabled
                   >
                     Phone
                   </Button>
@@ -236,30 +258,36 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                   </div>
                 )}
               </div>
-              <Button className="w-full" type="submit">Continue</Button>
+              <Button className="w-full" type="submit" disabled={isLoading}>
+                {isLoading ? "Sending verification..." : "Continue"}
+              </Button>
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="signup-otp">Verification Code</Label>
-                <Input
-                  id="signup-otp"
-                  type="text"
-                  placeholder="Enter the OTP sent to you"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  maxLength={6}
-                />
-                <p className="text-sm text-muted-foreground">
-                  We've sent a verification code to {method === 'email' ? email : phone}
+                <div className="flex justify-center my-4">
+                  <InputOTP value={otp} onChange={setOtp} maxLength={6}>
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  We've sent a verification code to {email}
                 </p>
               </div>
               <div className="flex gap-4">
-                <Button variant="outline" type="button" onClick={handleBack} className="flex-1">
+                <Button variant="outline" type="button" onClick={handleBack} className="flex-1" disabled={isLoading}>
                   Back
                 </Button>
-                <Button className="flex-1" type="submit">
-                  Create Account
+                <Button className="flex-1" type="submit" disabled={isLoading || otp.length !== 6}>
+                  {isLoading ? "Verifying..." : "Create Account"}
                 </Button>
               </div>
             </form>

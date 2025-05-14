@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import ChatBot from "./components/chat/chat-bot";
 import LiveBackground from "./components/live-background";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProfileProvider } from "./contexts/ProfileContext";
 
 const queryClient = new QueryClient();
 
@@ -20,31 +22,35 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <LiveBackground />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/dashboard" element={
-              <Dashboard 
-                onMessageOwner={(productId, title, owner) => {
-                  setChatProductId(productId);
-                  setChatProductTitle(title);
-                  setChatOwnerName(owner);
-                }}
+      <AuthProvider>
+        <ProfileProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <LiveBackground />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/dashboard" element={
+                  <Dashboard 
+                    onMessageOwner={(productId, title, owner) => {
+                      setChatProductId(productId);
+                      setChatProductTitle(title);
+                      setChatOwnerName(owner);
+                    }}
+                  />
+                } />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              <ChatBot 
+                productId={chatProductId} 
+                productTitle={chatProductTitle} 
+                ownerName={chatOwnerName}
               />
-            } />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <ChatBot 
-            productId={chatProductId} 
-            productTitle={chatProductTitle} 
-            ownerName={chatOwnerName}
-          />
-        </BrowserRouter>
-      </TooltipProvider>
+            </BrowserRouter>
+          </TooltipProvider>
+        </ProfileProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };
